@@ -23,14 +23,34 @@ function getWeatherVisual(condition = '', isDay = 1) {
   return { theme: isDay === 0 ? 'theme-night' : 'theme-clear', icon: isDay === 0 ? '🌙' : '☀️', rain: false, clouds: false, sun: true }
 }
 
+async function readApiResponse(response, fallbackMessage) {
+  let data
+  try {
+    data = await response.json()
+  } catch {
+    if (!response.ok) {
+      throw new Error(`Layanan cuaca sedang tidak tersedia (HTTP ${response.status}). Coba lagi nanti.`)
+    }
+    throw new Error('Respons server tidak valid.')
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.detail || fallbackMessage)
+  }
+  return data
+}
+
 export default function App() {
-  const [query, setQuery] = useState('Jakarta')
+  const initialCity = new URLSearchParams(window.location.search).get('city')?.trim() || 'Jakarta'
+  const [query, setQuery] = useState(initialCity)
   const [suggestions, setSuggestions] = useState([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [weather, setWeather] = useState(null)
   const [loading, setLoading] = useState(false)
   const [gpsLoading, setGpsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [shareStatus, setShareStatus] = useState('')
+  const [shareLink, setShareLink] = useState('')
   const searchBoxRef = useRef(null)
 
   const [favorites, setFavorites] = useState(() => {
@@ -66,7 +86,7 @@ export default function App() {
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
-        const data = await res.json()
+        const data = await readApiResponse(res, 'Gagal mencari kota.')
         setSuggestions(data.results || [])
       } catch {
         setSuggestions([])
@@ -79,11 +99,12 @@ export default function App() {
     if (!targetCity.trim()) return
     setLoading(true)
     setError('')
+    setShareStatus('')
+    setShareLink('')
     setShowDropdown(false)
     try {
       const res = await fetch(`/api/weather?city=${encodeURIComponent(targetCity)}`)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.detail || 'Gagal memuat data cuaca')
+      const data = await readApiResponse(res, 'Gagal memuat data cuaca.')
       setWeather(data)
       setQuery(data.city)
     } catch (err) {
@@ -106,8 +127,7 @@ export default function App() {
         try {
           const { latitude, longitude } = pos.coords
           const res = await fetch(`/api/weather/coords?lat=${latitude}&lon=${longitude}`)
-          const data = await res.json()
-          if (!res.ok) throw new Error(data.detail || 'Gagal mengambil cuaca lokasi Anda')
+          const data = await readApiResponse(res, 'Gagal mengambil cuaca lokasi Anda.')
           setWeather(data)
           setQuery(data.city)
         } catch (err) {
@@ -125,7 +145,7 @@ export default function App() {
   }
 
   useEffect(() => {
-    fetchWeather('Jakarta')
+    fetchWeather(initialCity)
   }, [])
 
   const handleSubmit = (e) => {
@@ -153,6 +173,38 @@ export default function App() {
   const removeFavorite = (e, cityToRemove) => {
     e.stopPropagation()
     setFavorites(favorites.filter((c) => c !== cityToRemove))
+  }
+
+  const shareWeather = async () => {
+    if (!weather) return
+
+    const url = new URL(window.location.href)
+    url.searchParams.set('city', weather.city)
+    const link = url.toString()
+    const shareData = {
+      title: `Cuaca di ${weather.city}`,
+      text: `${weather.condition}, ${weather.temperature}°C di ${weather.city}.`,
+      url: link,
+    }
+
+    setShareStatus('')
+    setShareLink('')
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData)
+        setShareStatus('Prakiraan berhasil dibagikan.')
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${shareData.text}\n${link}`)
+        setShareStatus('Prakiraan dan tautan disalin.')
+      } else {
+        setShareStatus('Salin tautan ini untuk membagikan prakiraan:')
+        setShareLink(link)
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return
+      setShareStatus('Berbagi otomatis tidak tersedia. Salin tautan ini:')
+      setShareLink(link)
+    }
   }
 
   const visual = getWeatherVisual(weather?.condition, weather?.is_day ?? 1)
@@ -328,6 +380,20 @@ export default function App() {
                 </span>
               </div>
 
+              <button type="button" className="share-button" onClick={shareWeather}>
+                Bagikan prakiraan
+              </button>
+              {shareStatus && (
+                <div className="share-status" role="status">
+                  {shareStatus}
+                  {shareLink && (
+                    <a href={shareLink} onClick={(event) => event.stopPropagation()}>
+                      {shareLink}
+                    </a>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '22px 0' }}>
                 <div style={{ fontSize: '3.75rem', fontWeight: '700', letterSpacing: '-0.03em' }}>
                   {weather.temperature}°C
@@ -352,6 +418,31 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            {weather.hourly_forecast?.length > 0 && (
+              <div className="glass-card" style={{ padding: '22px', marginBottom: '16px' }}>
+                <h3 style={{ margin: '0 0 14px 0', fontSize: '1rem', color: 'rgba(248,250,252,0.95)' }}>
+                  Prakiraan 24 Jam
+                </h3>
+                <div className="hourly-forecast">
+                  {weather.hourly_forecast.map((hour, index) => {
+                    const hourVisual = getWeatherVisual(hour.condition)
+                    return (
+                      <div className="hourly-card" key={hour.time}>
+                        <span className="hourly-time">
+                          {index === 0 ? 'Sekarang' : hour.time.split('T')[1]?.slice(0, 5)}
+                        </span>
+                        <span className="hourly-icon" aria-hidden="true">{hourVisual.icon}</span>
+                        <strong>{hour.temperature}°</strong>
+                        <span className="hourly-rain">
+                          💧 {hour.precipitation_probability ?? '—'}%
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Kartu Prakiraan 5 Hari ke Depan */}
             {weather.forecast && weather.forecast.length > 0 && (

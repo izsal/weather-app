@@ -29,8 +29,33 @@ WEATHER_CODES = {
     95: "Badai Petir",
 }
 
+
+async def fetch_json(client, url, params, service_name):
+    try:
+        response = await client.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Layanan {service_name} mengembalikan HTTP {exc.response.status_code}.",
+        ) from exc
+    except (httpx.RequestError, ValueError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Tidak dapat membaca respons dari layanan {service_name}.",
+        ) from exc
+
+    if not isinstance(data, dict):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Respons dari layanan {service_name} tidak valid.",
+        )
+    return data
+
+
 async def fetch_forecast_by_coords(lat: float, lon: float, city_name: str, country_name: str = ""):
-    cache_key = f"weather:{round(lat, 2)}:{round(lon, 2)}"
+    cache_key = f"weather:v2:{round(lat, 2)}:{round(lon, 2)}"
     try:
         cached = await redis_client.get(cache_key)
         if cached:
@@ -41,21 +66,51 @@ async def fetch_forecast_by_coords(lat: float, lon: float, city_name: str, count
         pass
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        weather_res = await client.get(
+        data = await fetch_json(
+            client,
             "https://api.open-meteo.com/v1/forecast",
-            params={
+            {
                 "latitude": lat,
                 "longitude": lon,
                 "current": "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code,is_day",
+                "hourly": "temperature_2m,precipitation_probability,weather_code",
                 "daily": "weather_code,temperature_2m_max,temperature_2m_min",
                 "forecast_days": 6,
+                "forecast_hours": 24,
                 "timezone": "auto"
-            }
+            },
+            "prakiraan cuaca",
         )
-        data = weather_res.json()
         current = data.get("current", {})
+        hourly = data.get("hourly", {})
         daily = data.get("daily", {})
         code = current.get("weather_code", 0)
+
+        hourly_forecast = []
+        hourly_times = hourly.get("time", [])
+        hourly_temperatures = hourly.get("temperature_2m", [])
+        hourly_rain_chances = hourly.get("precipitation_probability", [])
+        hourly_codes = hourly.get("weather_code", [])
+        current_time = current.get("time", "")
+        start_index = next(
+            (i for i, hour in enumerate(hourly_times) if hour[:13] >= current_time[:13]),
+            0
+        )
+        end_index = min(
+            start_index + 24,
+            len(hourly_times),
+            len(hourly_temperatures),
+            len(hourly_rain_chances),
+            len(hourly_codes),
+        )
+        for i in range(start_index, end_index):
+            hour_code = hourly_codes[i]
+            hourly_forecast.append({
+                "time": hourly_times[i],
+                "temperature": hourly_temperatures[i],
+                "precipitation_probability": hourly_rain_chances[i],
+                "condition": WEATHER_CODES.get(hour_code, f"Kode ({hour_code})"),
+            })
 
         forecast = []
         dates = daily.get("time", [])
@@ -83,6 +138,7 @@ async def fetch_forecast_by_coords(lat: float, lon: float, city_name: str, count
             "humidity": current.get("relative_humidity_2m"),
             "wind_speed": current.get("wind_speed_10m"),
             "condition": WEATHER_CODES.get(code, f"Kode Cuaca ({code})"),
+            "hourly_forecast": hourly_forecast,
             "forecast": forecast,
             "cached": False
         }
@@ -99,11 +155,13 @@ async def search_cities(q: str = ""):
     if len(q.strip()) < 2:
         return {"results": []}
     async with httpx.AsyncClient(timeout=8.0) as client:
-        res = await client.get(
+        data = await fetch_json(
+            client,
             "https://geocoding-api.open-meteo.com/v1/search",
-            params={"name": q.strip(), "count": 5, "language": "id", "format": "json"}
+            {"name": q.strip(), "count": 5, "language": "id", "format": "json"},
+            "pencarian kota",
         )
-        items = res.json().get("results", [])
+        items = data.get("results", [])
         return {
             "results": [
                 {
@@ -121,11 +179,12 @@ async def search_cities(q: str = ""):
 @app.get("/api/weather")
 async def get_weather(city: str = "Jakarta"):
     async with httpx.AsyncClient(timeout=10.0) as client:
-        geo_res = await client.get(
+        geo_data = await fetch_json(
+            client,
             "https://geocoding-api.open-meteo.com/v1/search",
-            params={"name": city, "count": 1, "language": "id", "format": "json"}
+            {"name": city, "count": 1, "language": "id", "format": "json"},
+            "pencarian kota",
         )
-        geo_data = geo_res.json()
         if not geo_data.get("results"):
             raise HTTPException(status_code=404, detail=f"Kota '{city}' tidak ditemukan.")
         loc = geo_data["results"][0]
