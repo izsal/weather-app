@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   BufferAttribute,
   BufferGeometry,
@@ -128,6 +128,7 @@ function makeHeart(color) {
 
 export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
   const canvasRef = useRef(null)
+  const [webglUnavailable, setWebglUnavailable] = useState(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -141,8 +142,10 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
         antialias: false,
         powerPreference: 'low-power',
       })
+      setWebglUnavailable(false)
     } catch (error) {
       console.warn('Three.js background could not initialize WebGL.', error)
+      setWebglUnavailable(true)
       return undefined
     }
 
@@ -163,6 +166,8 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
         bob: 0.12 + (index % 2) * 0.05,
         phase: index * 1.7,
         baseY: group.position.y,
+        baseScale: scale,
+        travel: 0,
       }
       scene.add(group)
       return group
@@ -174,7 +179,7 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
     sun.visible = visual.sun && isDay === 1
     scene.add(sun)
 
-    const moon =     new Mesh(
+    const moon = new Mesh(
       new CircleGeometry(0.52, 48),
       new MeshBasicMaterial({ color: '#fef3a6' }),
     )
@@ -259,14 +264,41 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
       return heart
     })
 
-    const particleCount = visual.hail ? 32 : visual.snow ? 64 : visual.rain ? 100 : 0
+    const isRain = visual.rain && !visual.snow && !visual.hail
+    const particleCount = visual.hail ? 32 : visual.snow ? 64 : isRain ? 120 : 0
     const particleGeometry = new BufferGeometry()
-    const particlePositions = new Float32Array(particleCount * 3)
+    const particlePositions = new Float32Array(particleCount * (isRain ? 18 : 3))
+    const particleHeads = isRain ? new Float32Array(particleCount * 2) : null
     const particleSpeeds = new Float32Array(particleCount)
+
+    const writeRainDrop = (index) => {
+      const x = particleHeads[index * 2]
+      const y = particleHeads[index * 2 + 1]
+      const width = 0.014
+      const length = 0.24
+      const z = 0.12
+      particlePositions.set([
+        x - width, y, z,
+        x + width, y, z,
+        x + width * 0.15, y - length, z,
+        x + width, y, z,
+        x + width * 0.8, y - length, z,
+        x + width * 0.15, y - length, z,
+      ], index * 18)
+    }
+
     for (let index = 0; index < particleCount; index += 1) {
-      particlePositions[index * 3] = (Math.random() * 2 - 1) * worldWidth
-      particlePositions[index * 3 + 1] = Math.random() * 8 - 4
-      particlePositions[index * 3 + 2] = 0.1
+      const x = (Math.random() * 2 - 1) * worldWidth
+      const y = Math.random() * 8 - 4
+      if (isRain) {
+        particleHeads[index * 2] = x
+        particleHeads[index * 2 + 1] = y
+        writeRainDrop(index)
+      } else {
+        particlePositions[index * 3] = x
+        particlePositions[index * 3 + 1] = y
+        particlePositions[index * 3 + 2] = 0.1
+      }
       particleSpeeds[index] = visual.snow
         ? 0.45 + Math.random() * 0.75
         : visual.hail
@@ -274,16 +306,27 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
           : 2.8 + Math.random() * 1.6
     }
     particleGeometry.setAttribute('position', new BufferAttribute(particlePositions, 3))
-    const particles = new Points(
-      particleGeometry,
-      new PointsMaterial({
-        color: visual.snow ? '#e0f2fe' : visual.hail ? '#bae6fd' : '#bfdbfe',
-        size: visual.snow ? 0.075 : visual.hail ? 0.065 : 0.035,
-        transparent: true,
-        opacity: 0.75,
-        sizeAttenuation: true,
-      }),
-    )
+    const particles = isRain
+      ? new Mesh(
+        particleGeometry,
+        new MeshBasicMaterial({
+          color: '#dbeafe',
+          transparent: true,
+          opacity: 0.82,
+          depthWrite: false,
+          side: DoubleSide,
+        }),
+      )
+      : new Points(
+        particleGeometry,
+        new PointsMaterial({
+          color: visual.snow ? '#e0f2fe' : '#bae6fd',
+          size: visual.snow ? 0.075 : 0.065,
+          transparent: true,
+          opacity: 0.75,
+          sizeAttenuation: true,
+        }),
+      )
     scene.add(particles)
 
     const resize = () => {
@@ -298,7 +341,9 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
       camera.updateProjectionMatrix()
       renderer.setSize(width, height, false)
       clouds.forEach((cloud, index) => {
-        cloud.position.x = ((index * 1.47) % 2 - 1) * worldWidth
+        const startX = ((index * 1.47) % 2 - 1) * worldWidth
+        cloud.position.x = startX
+        cloud.userData.travel = startX + worldWidth + 1.8
       })
       stars.forEach((star, index) => {
         star.position.x = ((index * 1.731) % 2 - 1) * worldWidth
@@ -315,14 +360,25 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
       })
       lightning.scale.x = worldWidth
       for (let index = 0; index < particleCount; index += 1) {
-        particlePositions[index * 3] = (Math.random() * 2 - 1) * worldWidth
+        const x = (Math.random() * 2 - 1) * worldWidth
+        if (isRain) {
+          particleHeads[index * 2] = x
+          particleHeads[index * 2 + 1] = Math.random() * 8 - 4
+          writeRainDrop(index)
+        } else {
+          particlePositions[index * 3] = x
+        }
       }
       particleGeometry.attributes.position.needsUpdate = true
     }
     resize()
     window.addEventListener('resize', resize)
+    const handleContextLost = (event) => {
+      event.preventDefault()
+      setWebglUnavailable(true)
+    }
+    canvas.addEventListener('webglcontextlost', handleContextLost)
 
-    const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
     let animationFrame = 0
     let previousTime = 0
     const animate = (time) => {
@@ -334,16 +390,24 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
       const elapsed = Math.min((time - previousTime) / 1000, 0.05)
       previousTime = time
       const seconds = time / 1000
-      if (!motionEnabled || motionQuery.matches) {
+      if (!motionEnabled) {
         renderer.render(scene, camera)
         return
       }
 
       animationFrame = window.requestAnimationFrame(animate)
       clouds.forEach((cloud) => {
-        cloud.position.x += cloud.userData.speed * elapsed
-        if (cloud.position.x > worldWidth + 1.8) cloud.position.x = -worldWidth - 1.8
+        cloud.userData.travel += cloud.userData.speed * elapsed
+        const travelRange = worldWidth * 2 + 3.6
+        if (cloud.userData.travel > travelRange) cloud.userData.travel -= travelRange
+        cloud.position.x = -worldWidth - 1.8 + cloud.userData.travel
+          + Math.sin(seconds * 0.32 + cloud.userData.phase) * 0.22
         cloud.position.y = cloud.userData.baseY + Math.sin(seconds + cloud.userData.phase) * cloud.userData.bob
+        cloud.rotation.z = Math.sin(seconds * 0.42 + cloud.userData.phase) * 0.025
+        cloud.scale.setScalar(
+          cloud.userData.baseScale
+            * (1 + Math.sin(seconds * 0.8 + cloud.userData.phase) * 0.018),
+        )
       })
       rays.rotation.z = seconds * 0.12
       sun.position.y = 2.35 + Math.sin(seconds * 0.55) * 0.09
@@ -379,30 +443,30 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
         }
       }
       for (let index = 0; index < particleCount; index += 1) {
-        const positionIndex = index * 3
-        particlePositions[positionIndex + 1] -= particleSpeeds[index] * elapsed
-        if (visual.snow) {
-          particlePositions[positionIndex] += Math.sin(seconds + index) * elapsed * 0.16
-        }
-        if (particlePositions[positionIndex + 1] < -4.2) {
-          particlePositions[positionIndex + 1] = 4.2
-          particlePositions[positionIndex] = (Math.random() * 2 - 1) * worldWidth
+        if (isRain) {
+          particleHeads[index * 2] += Math.sin(seconds * 0.7 + index) * elapsed * 0.08
+          particleHeads[index * 2 + 1] -= particleSpeeds[index] * elapsed
+          if (particleHeads[index * 2 + 1] < -4.2) {
+            particleHeads[index * 2] = (Math.random() * 2 - 1) * worldWidth
+            particleHeads[index * 2 + 1] = 4.2
+          }
+          writeRainDrop(index)
+        } else {
+          const positionIndex = index * 3
+          particlePositions[positionIndex + 1] -= particleSpeeds[index] * elapsed
+          if (visual.snow) {
+            particlePositions[positionIndex] += Math.sin(seconds + index) * elapsed * 0.16
+          }
+          if (particlePositions[positionIndex + 1] < -4.2) {
+            particlePositions[positionIndex + 1] = 4.2
+            particlePositions[positionIndex] = (Math.random() * 2 - 1) * worldWidth
+          }
         }
       }
       particleGeometry.attributes.position.needsUpdate = true
       renderer.render(scene, camera)
     }
-    const handleMotionChange = () => {
-      if (!motionEnabled || motionQuery.matches) {
-        window.cancelAnimationFrame(animationFrame)
-        animationFrame = 0
-        renderer.render(scene, camera)
-      } else if (!animationFrame) {
-        animationFrame = window.requestAnimationFrame(animate)
-      }
-    }
-    motionQuery.addEventListener('change', handleMotionChange)
-    if (motionEnabled && !motionQuery.matches) {
+    if (motionEnabled) {
       animationFrame = window.requestAnimationFrame(animate)
     } else {
       renderer.render(scene, camera)
@@ -411,7 +475,7 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
     return () => {
       window.cancelAnimationFrame(animationFrame)
       window.removeEventListener('resize', resize)
-      motionQuery.removeEventListener('change', handleMotionChange)
+      canvas.removeEventListener('webglcontextlost', handleContextLost)
       scene.traverse((object) => {
         object.geometry?.dispose()
         if (Array.isArray(object.material)) object.material.forEach((material) => material.dispose())
@@ -432,7 +496,57 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
 
   return (
     <div className="cute-scene-layer" aria-hidden="true">
-      <canvas className="cute-scene-canvas" ref={canvasRef} />
+      <canvas
+        className="cute-scene-canvas"
+        ref={canvasRef}
+        style={{ visibility: webglUnavailable ? 'hidden' : 'visible' }}
+      />
+      {webglUnavailable && (
+        <div className="cute-scene-fallback">
+          <span className="cute-fallback-cloud cute-fallback-cloud-1">☁️</span>
+          <span className="cute-fallback-cloud cute-fallback-cloud-2">☁️</span>
+          {visual.sun && isDay === 1 && <span className="cute-fallback-sun">☀️</span>}
+          {isDay === 0 && <span className="cute-fallback-moon">🌙</span>}
+          <span className="cute-fallback-heart cute-fallback-heart-1">♥</span>
+          <span className="cute-fallback-heart cute-fallback-heart-2">♥</span>
+          {visual.rain && Array.from({ length: 22 }, (_, index) => (
+            <span
+              key={`rain-${index}`}
+              className="rain-drop"
+              style={{ left: `${(index * 4.7) % 100}%`, animationDelay: `${(index % 8) * 0.16}s` }}
+            />
+          ))}
+          {visual.snow && Array.from({ length: 18 }, (_, index) => (
+            <span
+              key={`snow-${index}`}
+              className="snowflake"
+              style={{ left: `${(index * 7.3) % 100}%`, animationDelay: `${-index * 0.7}s` }}
+            >
+              ❄
+            </span>
+          ))}
+          {visual.hail && Array.from({ length: 14 }, (_, index) => (
+            <span
+              key={`hail-${index}`}
+              className="hailstone"
+              style={{
+                left: `${(index * 7.3) % 100}%`,
+                animationDelay: `${-index * 0.4}s`,
+                width: '7px',
+                height: '7px',
+              }}
+            />
+          ))}
+          {visual.fog && (
+            <div className="fog-banks">
+              {[0, 1, 2, 3].map((bank) => (
+                <span className={`fog-bank fog-bank-${bank + 1}`} key={bank} />
+              ))}
+            </div>
+          )}
+          {visual.storm && <span className="storm-flash" />}
+        </div>
+      )}
     </div>
   )
 }
