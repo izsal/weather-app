@@ -4,7 +4,7 @@ import redis.asyncio as redis
 import json
 import os
 
-app = FastAPI(title="Weather API Pro", root_path="/api")
+app = FastAPI(title="Weather API Pro")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CACHE_TTL = 600  # Cache 10 menit
@@ -94,7 +94,7 @@ async def fetch_forecast_by_coords(lat: float, lon: float, city_name: str, count
 
         return result
 
-@app.get("/search")
+@app.get("/api/search")
 async def search_cities(q: str = ""):
     if len(q.strip()) < 2:
         return {"results": []}
@@ -118,7 +118,7 @@ async def search_cities(q: str = ""):
             ]
         }
 
-@app.get("/weather")
+@app.get("/api/weather")
 async def get_weather(city: str = "Jakarta"):
     async with httpx.AsyncClient(timeout=10.0) as client:
         geo_res = await client.get(
@@ -133,7 +133,7 @@ async def get_weather(city: str = "Jakarta"):
             loc["latitude"], loc["longitude"], loc["name"], loc.get("country", "")
         )
 
-@app.get("/weather/coords")
+@app.get("/api/weather/coords")
 async def get_weather_by_coords(lat: float, lon: float):
     city_name = "Lokasi GPS Anda"
     country_name = f"{lat:.2f}, {lon:.2f}"
@@ -150,3 +150,7 @@ async def get_weather_by_coords(lat: float, lon: float):
     except Exception:
         pass
     return await fetch_forecast_by_coords(lat, lon, city_name, country_name)
+
+if os.path.isdir("static"):
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory="static", html=True), name="static")
