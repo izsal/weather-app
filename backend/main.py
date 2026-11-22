@@ -164,6 +164,8 @@ async def fetch_weatherapi_forecast(lat, lon, city_name, country_name):
         "country": country_name or location.get("country", ""),
         "latitude": lat,
         "longitude": lon,
+        "timezone": location.get("tz_id"),
+        "local_time": location.get("localtime"),
         "is_day": current.get("is_day", 1),
         "temperature": current.get("temp_c"),
         "apparent_temperature": current.get("feelslike_c"),
@@ -199,7 +201,7 @@ async def fetch_forecast_by_coords(
     country_name: str = "",
     force_refresh: bool = False,
 ):
-    cache_key = f"weather:v4:{round(lat, 2)}:{round(lon, 2)}"
+    cache_key = f"weather:v5:{round(lat, 2)}:{round(lon, 2)}"
     if not force_refresh:
         try:
             cached = await redis_client.get(cache_key)

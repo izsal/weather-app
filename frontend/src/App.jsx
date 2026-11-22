@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import './WeatherFX.css'
 import CuteScene from './CuteScene.jsx'
 import { getWeatherVisual } from './weatherVisual.js'
+import { getDayPhase } from './weatherTime.js'
 
 const STORAGE_KEY = 'weather_favorite_cities'
 const UNIT_STORAGE_KEY = 'weather_temperature_unit'
@@ -70,6 +71,9 @@ export default function App() {
   const [canRetry, setCanRetry] = useState(false)
   const [shareStatus, setShareStatus] = useState('')
   const [shareLink, setShareLink] = useState('')
+  const [selectedForecastHour, setSelectedForecastHour] = useState('')
+  const [selectedForecastDay, setSelectedForecastDay] = useState('')
+  const [clockNow, setClockNow] = useState(() => Date.now())
   const searchBoxRef = useRef(null)
   const lastWeatherRequestRef = useRef(null)
   const [backgroundMotion, setBackgroundMotion] = useState(getInitialMotionPreference)
@@ -109,6 +113,11 @@ export default function App() {
       return
     }
   }, [backgroundMotion])
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   // Tutup dropdown autocomplete saat klik di luar form
   useEffect(() => {
@@ -167,6 +176,8 @@ export default function App() {
       const data = await readApiResponse(res, 'Gagal memuat data cuaca.')
       setWeather(data)
       setQuery(data.city)
+      setSelectedForecastHour('')
+      setSelectedForecastDay('')
     } catch (err) {
       setError(err.message)
       setCanRetry(true)
@@ -298,13 +309,51 @@ export default function App() {
   }
 
   const visual = getWeatherVisual(weather?.condition, weather?.is_day ?? 1)
+  const dayPhase = getDayPhase(weather, clockNow)
+  const rainChance = Math.max(
+    0,
+    ...(weather?.hourly_forecast || [])
+      .slice(0, 3)
+      .map((hour) => Number(hour.precipitation_probability) || 0),
+  )
+  const [stageTheme, setStageTheme] = useState(visual.theme)
+  const [transitionTheme, setTransitionTheme] = useState('')
+  const [transitionVisible, setTransitionVisible] = useState(false)
+
+  useEffect(() => {
+    if (stageTheme === visual.theme) return undefined
+
+    setTransitionTheme(visual.theme)
+    setTransitionVisible(false)
+    const frame = window.requestAnimationFrame(() => setTransitionVisible(true))
+    const timer = window.setTimeout(() => {
+      setStageTheme(visual.theme)
+      setTransitionTheme('')
+      setTransitionVisible(false)
+    }, 1400)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      window.clearTimeout(timer)
+    }
+  }, [stageTheme, visual.theme])
 
   return (
-    <div className={`weather-stage ${visual.theme}${backgroundMotion ? '' : ' motion-reduced'}`}>
+    <div
+      className={`weather-stage ${stageTheme}${backgroundMotion ? '' : ' motion-reduced'}`}
+      style={{ '--twilight-opacity': dayPhase.twilight }}
+    >
+      {transitionTheme && (
+        <div
+          aria-hidden="true"
+          className={`weather-theme-overlay ${transitionTheme}${transitionVisible ? ' is-visible' : ''}`}
+        />
+      )}
       {/* Ilustrasi Background Cute & Cozy */}
       <CuteScene
         visual={visual}
-        isDay={weather?.is_day ?? 1}
+        dayPhase={dayPhase}
+        rainChance={rainChance}
+        windSpeed={weather?.wind_speed ?? 0}
         motionEnabled={backgroundMotion}
       />
 
@@ -607,16 +656,26 @@ export default function App() {
                   {weather.hourly_forecast.map((hour, index) => {
                     const hourVisual = getWeatherVisual(hour.condition)
                     return (
-                      <div className="hourly-card" key={hour.time}>
+                      <button
+                        type="button"
+                        className={`hourly-card${selectedForecastHour === hour.time ? ' is-selected' : ''}`}
+                        key={hour.time}
+                        style={{ '--stagger-index': index }}
+                        aria-pressed={selectedForecastHour === hour.time}
+                        onClick={() => {
+                          setSelectedForecastHour(hour.time)
+                          setSelectedForecastDay('')
+                        }}
+                      >
                         <span className="hourly-time">
-                          {index === 0 ? 'Sekarang' : hour.time.split('T')[1]?.slice(0, 5)}
+                          {index === 0 ? 'Sekarang' : hour.time.split(/[T ]/)[1]?.slice(0, 5)}
                         </span>
                         <span className="hourly-icon" aria-hidden="true">{hourVisual.icon}</span>
                         <strong>{formatTemperature(hour.temperature)}</strong>
                         <span className="hourly-rain">
                           💧 {hour.precipitation_probability ?? '—'}%
                         </span>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
@@ -630,10 +689,20 @@ export default function App() {
                   Prakiraan {weather.forecast.length} Hari ke Depan
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {weather.forecast.map((day) => {
+                  {weather.forecast.map((day, index) => {
                     const dayVisual = getWeatherVisual(day.condition, 1)
                     return (
-                      <div key={day.date} className="forecast-row">
+                      <button
+                        type="button"
+                        key={day.date}
+                        className={`forecast-row${selectedForecastDay === day.date ? ' is-selected' : ''}`}
+                        style={{ '--stagger-index': index }}
+                        aria-pressed={selectedForecastDay === day.date}
+                        onClick={() => {
+                          setSelectedForecastDay(day.date)
+                          setSelectedForecastHour('')
+                        }}
+                      >
                         <span style={{ fontWeight: '600', color: '#f8fafc' }}>{formatTanggal(day.date)}</span>
                         <span style={{ color: '#e0f2fe', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span>{dayVisual.icon}</span>
@@ -642,7 +711,7 @@ export default function App() {
                         <span style={{ fontWeight: '600' }}>
                           <span style={{ color: 'rgba(248,250,252,0.68)' }}>{formatTemperature(day.temp_min)}</span> / <span style={{ color: '#fff' }}>{formatTemperature(day.temp_max)}</span>
                         </span>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>

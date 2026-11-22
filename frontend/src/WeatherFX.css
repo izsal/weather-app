@@ -19,6 +19,30 @@ body {
   padding: 36px 20px 64px;
 }
 
+.weather-stage::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(251, 146, 60, 0.34), rgba(192, 132, 252, 0.16) 58%, transparent);
+  content: '';
+  opacity: var(--twilight-opacity, 0);
+  pointer-events: none;
+  transition: opacity 1.4s ease;
+}
+
+.weather-theme-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.4s ease;
+}
+
+.weather-theme-overlay.is-visible {
+  opacity: 1;
+}
+
 /* Palet Langit yang Segar, Hangat, dan Nyaman Dilihat */
 .theme-clear {
   background: linear-gradient(180deg, #38bdf8 0%, #0284c7 52%, #075985 100%);
@@ -438,11 +462,30 @@ body {
   border-radius: 14px;
   font-size: 0.9rem;
   transition: transform 0.2s ease, background 0.2s ease;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: forecastEnter 0.48s cubic-bezier(0.2, 0.75, 0.25, 1) backwards;
+  animation-delay: calc(var(--stagger-index, 0) * 90ms);
 }
 
 .forecast-row:hover {
   transform: translateX(4px);
   background: rgba(255, 255, 255, 0.14);
+}
+
+.forecast-row.is-selected,
+.hourly-card.is-selected {
+  border-color: rgba(125, 211, 252, 0.8);
+  background: rgba(56, 189, 248, 0.22);
+  box-shadow: 0 0 0 2px rgba(125, 211, 252, 0.12);
+}
+
+@keyframes forecastEnter {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .fav-chip {
@@ -534,6 +577,28 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.07);
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  animation: forecastEnter 0.48s cubic-bezier(0.2, 0.75, 0.25, 1) backwards;
+  animation-delay: calc(var(--stagger-index, 0) * 35ms);
+}
+
+.hourly-card:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.hourly-card:active {
+  transform: scale(0.96);
+}
+
+.forecast-row:focus-visible,
+.hourly-card:focus-visible {
+  outline: 2px solid #bae6fd;
+  outline-offset: 3px;
 }
 
 .hourly-time,
@@ -615,6 +680,13 @@ body {
 .motion-reduced .loading-spinner {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+.motion-reduced .forecast-row,
+.motion-reduced .hourly-card {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
   transition-duration: 0.01ms !important;
 }
 

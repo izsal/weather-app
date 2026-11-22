@@ -41,6 +41,7 @@ class WeatherApiTests(unittest.IsolatedAsyncioTestCase):
             "location": {
                 "name": "Jakarta",
                 "country": "Indonesia",
+                "tz_id": "Asia/Jakarta",
                 "localtime": "2026-11-22 11:30",
             },
             "current": {
@@ -95,6 +96,8 @@ class WeatherApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["city"], "Jakarta")
         self.assertEqual(result["country"], "Indonesia")
+        self.assertEqual(result["timezone"], "Asia/Jakarta")
+        self.assertEqual(result["local_time"], "2026-11-22 11:30")
         self.assertEqual(result["temperature"], 30)
         self.assertEqual(result["uv_index"], 5)
         self.assertEqual(result["sunrise"], "05:30 AM")

@@ -57,6 +57,27 @@ function makeCloud() {
   cheekRight.position.set(0.3, -0.13, 0.13)
   cloud.add(cheekLeft, cheekRight)
 
+  const arms = [-1, 1].map((side) => {
+    const arm = new Group()
+    const armPoints = [
+      new Vector3(0, 0, 0),
+      new Vector3(side * 0.16, 0.13, 0),
+    ]
+    arm.add(new Line(
+      new BufferGeometry().setFromPoints(armPoints),
+      new LineBasicMaterial({ color: '#334155', linewidth: 2 }),
+    ))
+    const hand = new Mesh(
+      new CircleGeometry(0.04, 12),
+      new MeshBasicMaterial({ color: '#fb91a8' }),
+    )
+    hand.position.set(side * 0.16, 0.13, 0)
+    arm.add(hand)
+    arm.position.set(side * 0.59, -0.06, 0.16)
+    cloud.add(arm)
+    return arm
+  })
+
   const smilePoints = []
   for (let index = 0; index <= 12; index += 1) {
     const x = -0.07 + (index / 12) * 0.14
@@ -67,6 +88,7 @@ function makeCloud() {
     new LineBasicMaterial({ color: '#334155', linewidth: 2 }),
   )
   cloud.add(smile)
+  cloud.userData.face = { eyes: [eyeLeft, eyeRight], arms }
   return cloud
 }
 
@@ -126,8 +148,17 @@ function makeHeart(color) {
   )
 }
 
-export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
+export default function CuteScene({
+  visual,
+  isDay = 1,
+  dayPhase = { phase: Number(isDay) === 0 ? 'night' : 'day', progress: 0.5, twilight: 0 },
+  rainChance = 0,
+  windSpeed = 0,
+  motionEnabled = true,
+}) {
   const canvasRef = useRef(null)
+  const dayPhaseRef = useRef(dayPhase)
+  dayPhaseRef.current = dayPhase
   const [webglUnavailable, setWebglUnavailable] = useState(false)
 
   useEffect(() => {
@@ -159,6 +190,7 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
     const clouds = Array.from({ length: 5 }, (_, index) => {
       const group = makeCloud()
       const scale = 0.72 + ((index * 7) % 4) * 0.12
+      const face = group.userData.face
       group.scale.setScalar(scale)
       group.position.set(-worldWidth + index * (worldWidth * 0.58), 2.8 - index * 1.15, 0)
       group.userData = {
@@ -168,23 +200,30 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
         baseY: group.position.y,
         baseScale: scale,
         travel: 0,
+        eyes: face.eyes,
+        arms: face.arms,
       }
       scene.add(group)
       return group
     })
 
     const { sun, rays } = makeSun()
-    sun.position.set(2.55, 2.35, 0.3)
+    const initialSolarProgress = Math.min(Math.max(dayPhase.progress, 0), 1)
+    sun.position.set(
+      (initialSolarProgress - 0.5) * worldWidth * 1.28,
+      -0.15 + Math.sin(initialSolarProgress * Math.PI) * 2.45,
+      0.3,
+    )
     sun.scale.setScalar(0.8)
-    sun.visible = visual.sun && isDay === 1
+    sun.visible = visual.sun && dayPhase.phase !== 'night'
     scene.add(sun)
 
     const moon = new Mesh(
       new CircleGeometry(0.52, 48),
-      new MeshBasicMaterial({ color: '#fef3a6' }),
+      new MeshBasicMaterial({ color: '#fef3a6', transparent: true }),
     )
     moon.position.set(2.55, 2.35, 0.2)
-    moon.visible = isDay === 0
+    moon.visible = dayPhase.phase === 'night' || dayPhase.phase === 'dusk'
     scene.add(moon)
 
     const fogBanks = Array.from({ length: visual.fog ? 4 : 0 }, (_, index) => {
@@ -230,7 +269,13 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
         -0.2,
       )
       star.userData.phase = index * 0.8
-      star.visible = isDay === 0
+      const phaseOpacity = dayPhase.phase === 'night'
+        ? 1
+        : dayPhase.phase === 'dawn' || dayPhase.phase === 'dusk'
+          ? dayPhase.twilight
+          : 0
+      star.visible = phaseOpacity > 0.02
+      star.material.opacity = phaseOpacity
       scene.add(star)
       return star
     })
@@ -265,7 +310,15 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
     })
 
     const isRain = visual.rain && !visual.snow && !visual.hail
-    const particleCount = visual.hail ? 32 : visual.snow ? 64 : isRain ? 120 : 0
+    const safeRainChance = Math.min(Math.max(Number(rainChance) || 0, 0), 100)
+    const safeWindSpeed = Math.min(Math.max(Number(windSpeed) || 0, 0), 100)
+    const particleCount = visual.hail
+      ? 32
+      : visual.snow
+        ? 64
+        : isRain
+          ? Math.round(28 + safeRainChance * 0.92)
+          : 0
     const particleGeometry = new BufferGeometry()
     const particlePositions = new Float32Array(particleCount * (isRain ? 18 : 3))
     const particleHeads = isRain ? new Float32Array(particleCount * 2) : null
@@ -277,13 +330,14 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
       const width = 0.014
       const length = 0.24
       const z = 0.12
+      const windDrift = safeWindSpeed * 0.0015
       particlePositions.set([
         x - width, y, z,
         x + width, y, z,
-        x + width * 0.15, y - length, z,
+        x - windDrift, y - length, z,
         x + width, y, z,
-        x + width * 0.8, y - length, z,
-        x + width * 0.15, y - length, z,
+        x + width - windDrift, y - length, z,
+        x - windDrift, y - length, z,
       ], index * 18)
     }
 
@@ -299,11 +353,11 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
         particlePositions[index * 3 + 1] = y
         particlePositions[index * 3 + 2] = 0.1
       }
-      particleSpeeds[index] = visual.snow
-        ? 0.45 + Math.random() * 0.75
-        : visual.hail
-          ? 2.2 + Math.random() * 1.3
-          : 2.8 + Math.random() * 1.6
+      particleSpeeds[index] = isRain
+        ? 2.3 + safeRainChance * 0.018 + Math.random() * 1.1
+        : visual.snow
+          ? 0.45 + Math.random() * 0.75
+          : 2.2 + Math.random() * 1.3
     }
     particleGeometry.setAttribute('position', new BufferAttribute(particlePositions, 3))
     const particles = isRain
@@ -340,6 +394,9 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
       camera.bottom = -4
       camera.updateProjectionMatrix()
       renderer.setSize(width, height, false)
+      const solarProgress = Math.min(Math.max(dayPhaseRef.current.progress, 0), 1)
+      sun.position.x = (solarProgress - 0.5) * worldWidth * 1.28
+      sun.position.y = -0.15 + Math.sin(solarProgress * Math.PI) * 2.45
       clouds.forEach((cloud, index) => {
         const startX = ((index * 1.47) % 2 - 1) * worldWidth
         cloud.position.x = startX
@@ -408,15 +465,44 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
           cloud.userData.baseScale
             * (1 + Math.sin(seconds * 0.8 + cloud.userData.phase) * 0.018),
         )
+        const blinkPhase = (seconds + cloud.userData.phase) % 6.4
+        const blinkScale = blinkPhase < 0.13
+          ? 0.12
+          : blinkPhase < 0.25
+            ? 0.12 + ((blinkPhase - 0.13) / 0.12) * 0.88
+            : 1
+        cloud.userData.eyes.forEach((eye) => {
+          eye.scale.y = blinkScale
+        })
+        cloud.userData.arms.forEach((arm, index) => {
+          const direction = index === 0 ? -1 : 1
+          arm.rotation.z = direction * Math.max(0, Math.sin(seconds * 1.8 + cloud.userData.phase)) * 0.52
+        })
       })
+      const currentDayPhase = dayPhaseRef.current
+      const solarProgress = Math.min(Math.max(currentDayPhase.progress, 0), 1)
+      sun.visible = visual.sun && currentDayPhase.phase !== 'night'
+      sun.position.x = (solarProgress - 0.5) * worldWidth * 1.28
+      sun.position.y = -0.15 + Math.sin(solarProgress * Math.PI) * 2.45
       rays.rotation.z = seconds * 0.12
-      sun.position.y = 2.35 + Math.sin(seconds * 0.55) * 0.09
+      sun.position.y += Math.sin(seconds * 0.55) * 0.06
+      moon.visible = currentDayPhase.phase === 'night' || currentDayPhase.phase === 'dusk'
+      moon.material.opacity = currentDayPhase.phase === 'dusk'
+        ? Math.min(currentDayPhase.twilight + 0.2, 1)
+        : 1
       sparkles.forEach((sparkle) => {
         sparkle.rotation.z = seconds * 0.22 + sparkle.userData.phase
         sparkle.material.opacity = 0.2 + (Math.sin(seconds * 1.2 + sparkle.userData.phase) + 1) * 0.3
       })
       stars.forEach((star) => {
-        star.material.opacity = 0.25 + (Math.sin(seconds * 1.8 + star.userData.phase) + 1) * 0.35
+        const phaseOpacity = currentDayPhase.phase === 'night'
+          ? 1
+          : currentDayPhase.phase === 'dawn' || currentDayPhase.phase === 'dusk'
+            ? currentDayPhase.twilight
+            : 0
+        star.visible = phaseOpacity > 0.02
+        star.material.opacity = phaseOpacity
+          * (0.25 + (Math.sin(seconds * 1.8 + star.userData.phase) + 1) * 0.35)
       })
       hearts.forEach((heart) => {
         heart.position.y += heart.userData.speed * elapsed
@@ -444,7 +530,9 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
       }
       for (let index = 0; index < particleCount; index += 1) {
         if (isRain) {
-          particleHeads[index * 2] += Math.sin(seconds * 0.7 + index) * elapsed * 0.08
+          particleHeads[index * 2] += (
+            safeWindSpeed * 0.0015 + Math.sin(seconds * 0.7 + index) * 0.08
+          ) * elapsed
           particleHeads[index * 2 + 1] -= particleSpeeds[index] * elapsed
           if (particleHeads[index * 2 + 1] < -4.2) {
             particleHeads[index * 2] = (Math.random() * 2 - 1) * worldWidth
@@ -484,14 +572,17 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
       renderer.dispose()
     }
   }, [
+    dayPhase.phase,
     isDay,
     motionEnabled,
+    rainChance,
     visual.fog,
     visual.hail,
     visual.rain,
     visual.snow,
     visual.storm,
     visual.sun,
+    windSpeed,
   ])
 
   return (
@@ -505,8 +596,8 @@ export default function CuteScene({ visual, isDay = 1, motionEnabled = true }) {
         <div className="cute-scene-fallback">
           <span className="cute-fallback-cloud cute-fallback-cloud-1">☁️</span>
           <span className="cute-fallback-cloud cute-fallback-cloud-2">☁️</span>
-          {visual.sun && isDay === 1 && <span className="cute-fallback-sun">☀️</span>}
-          {isDay === 0 && <span className="cute-fallback-moon">🌙</span>}
+          {visual.sun && dayPhase.phase !== 'night' && <span className="cute-fallback-sun">☀️</span>}
+          {(dayPhase.phase === 'night' || dayPhase.phase === 'dusk') && <span className="cute-fallback-moon">🌙</span>}
           <span className="cute-fallback-heart cute-fallback-heart-1">♥</span>
           <span className="cute-fallback-heart cute-fallback-heart-2">♥</span>
           {visual.rain && Array.from({ length: 22 }, (_, index) => (
