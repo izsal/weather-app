@@ -1,52 +1,72 @@
-from fastapi import FastAPI, HTTPException
-import httpx
-import redis.asyncio as redis
+import asyncio
 import json
+import logging
 import os
 
+import httpx
+import redis.asyncio as redis
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+
+load_dotenv()
+
 app = FastAPI(title="Weather API Pro")
+logger = logging.getLogger(__name__)
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CACHE_TTL = 600  # Cache 10 menit
+WEATHERAPI_KEY = os.getenv("WEATHERAPI_KEY", "").strip()
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
 
-WEATHER_CODES = {
-    0: "Cerah",
-    1: "Sebagian Besar Cerah",
-    2: "Berawan Sebagian",
-    3: "Mendung",
-    45: "Berkabut",
-    48: "Kabut Beku",
-    51: "Gerimis Ringan",
-    53: "Gerimis Sedang",
-    55: "Gerimis Lebat",
-    61: "Hujan Ringan",
-    63: "Hujan Sedang",
-    65: "Hujan Lebat",
-    80: "Hujan Lokal Ringan",
-    81: "Hujan Lokal Sedang",
-    82: "Hujan Lokal Deras",
-    95: "Badai Petir",
-}
 
-
-async def fetch_json(client, url, params, service_name):
-    try:
-        response = await client.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-    except httpx.HTTPStatusError as exc:
+def require_weatherapi_key():
+    if not WEATHERAPI_KEY:
         raise HTTPException(
-            status_code=502,
-            detail=f"Layanan {service_name} mengembalikan HTTP {exc.response.status_code}.",
-        ) from exc
-    except (httpx.RequestError, ValueError) as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Tidak dapat membaca respons dari layanan {service_name}.",
-        ) from exc
+            status_code=503,
+            detail="WEATHERAPI_KEY belum dikonfigurasi di file .env atau environment hosting.",
+        )
 
-    if not isinstance(data, dict):
+
+async def fetch_json(client, url, params, service_name, expected_type=dict):
+    for attempt in range(2):
+        try:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            break
+        except httpx.HTTPStatusError as exc:
+            if attempt == 0 and exc.response.status_code in {408, 500, 502, 503, 504}:
+                logger.warning(
+                    "Layanan %s mengembalikan HTTP %s; mencoba ulang.",
+                    service_name,
+                    exc.response.status_code,
+                )
+                await asyncio.sleep(0.3)
+                continue
+            raise HTTPException(
+                status_code=502,
+                detail=f"Layanan {service_name} mengembalikan HTTP {exc.response.status_code}.",
+            ) from exc
+        except (httpx.RequestError, ValueError) as exc:
+            if attempt == 0:
+                logger.warning(
+                    "Respons dari layanan %s gagal dibaca (%s); mencoba ulang.",
+                    service_name,
+                    type(exc).__name__,
+                )
+                await asyncio.sleep(0.3)
+                continue
+            logger.error(
+                "Respons dari layanan %s tetap gagal dibaca setelah dicoba ulang (%s).",
+                service_name,
+                type(exc).__name__,
+            )
+            raise HTTPException(
+                status_code=502,
+                detail=f"Tidak dapat membaca respons dari layanan {service_name}.",
+            ) from exc
+
+    if not isinstance(data, expected_type):
         raise HTTPException(
             status_code=502,
             detail=f"Respons dari layanan {service_name} tidak valid.",
@@ -54,161 +74,182 @@ async def fetch_json(client, url, params, service_name):
     return data
 
 
-async def fetch_forecast_by_coords(lat: float, lon: float, city_name: str, country_name: str = ""):
-    cache_key = f"weather:v2:{round(lat, 2)}:{round(lon, 2)}"
-    try:
-        cached = await redis_client.get(cache_key)
-        if cached:
-            data = json.loads(cached)
-            data["cached"] = True
-            return data
-    except Exception:
-        pass
+async def search_weatherapi_cities(query):
+    require_weatherapi_key()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        locations = await fetch_json(
+            client,
+            "https://api.weatherapi.com/v1/search.json",
+            {"key": WEATHERAPI_KEY, "q": query},
+            "pencarian kota",
+            expected_type=list,
+        )
+    return [
+        {
+            "id": item.get("id"),
+            "name": item.get("name"),
+            "admin1": item.get("region", ""),
+            "country": item.get("country", ""),
+            "latitude": item.get("lat"),
+            "longitude": item.get("lon"),
+        }
+        for item in locations
+    ]
 
+
+async def fetch_weatherapi_forecast(lat, lon, city_name, country_name):
+    require_weatherapi_key()
     async with httpx.AsyncClient(timeout=10.0) as client:
         data = await fetch_json(
             client,
-            "https://api.open-meteo.com/v1/forecast",
+            "https://api.weatherapi.com/v1/forecast.json",
             {
-                "latitude": lat,
-                "longitude": lon,
-                "current": "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code,is_day",
-                "hourly": "temperature_2m,precipitation_probability,weather_code",
-                "daily": "weather_code,temperature_2m_max,temperature_2m_min",
-                "forecast_days": 6,
-                "forecast_hours": 24,
-                "timezone": "auto"
+                "key": WEATHERAPI_KEY,
+                "q": f"{lat},{lon}",
+                "days": 3,
+                "lang": "id",
+                "aqi": "no",
+                "alerts": "yes",
             },
             "prakiraan cuaca",
         )
-        current = data.get("current", {})
-        hourly = data.get("hourly", {})
-        daily = data.get("daily", {})
-        code = current.get("weather_code", 0)
 
-        hourly_forecast = []
-        hourly_times = hourly.get("time", [])
-        hourly_temperatures = hourly.get("temperature_2m", [])
-        hourly_rain_chances = hourly.get("precipitation_probability", [])
-        hourly_codes = hourly.get("weather_code", [])
-        current_time = current.get("time", "")
-        start_index = next(
-            (i for i, hour in enumerate(hourly_times) if hour[:13] >= current_time[:13]),
-            0
+    location = data.get("location") or {}
+    current = data.get("current") or {}
+    forecast_days = (data.get("forecast") or {}).get("forecastday") or []
+    if not forecast_days:
+        raise HTTPException(
+            status_code=502,
+            detail="Respons WeatherAPI tidak berisi prakiraan cuaca.",
         )
-        end_index = min(
-            start_index + 24,
-            len(hourly_times),
-            len(hourly_temperatures),
-            len(hourly_rain_chances),
-            len(hourly_codes),
-        )
-        for i in range(start_index, end_index):
-            hour_code = hourly_codes[i]
-            hourly_forecast.append({
-                "time": hourly_times[i],
-                "temperature": hourly_temperatures[i],
-                "precipitation_probability": hourly_rain_chances[i],
-                "condition": WEATHER_CODES.get(hour_code, f"Kode ({hour_code})"),
-            })
 
-        forecast = []
-        dates = daily.get("time", [])
-        codes = daily.get("weather_code", [])
-        temp_maxs = daily.get("temperature_2m_max", [])
-        temp_mins = daily.get("temperature_2m_min", [])
-
-        for i in range(1, min(6, len(dates))):
-            d_code = codes[i]
-            forecast.append({
-                "date": dates[i],
-                "condition": WEATHER_CODES.get(d_code, f"Kode ({d_code})"),
-                "temp_max": temp_maxs[i],
-                "temp_min": temp_mins[i],
-            })
-
-        result = {
-            "city": city_name,
-            "country": country_name,
-            "latitude": lat,
-            "longitude": lon,
-            "is_day": current.get("is_day", 1),
-            "temperature": current.get("temperature_2m"),
-            "apparent_temperature": current.get("apparent_temperature"),
-            "humidity": current.get("relative_humidity_2m"),
-            "wind_speed": current.get("wind_speed_10m"),
-            "condition": WEATHER_CODES.get(code, f"Kode Cuaca ({code})"),
-            "hourly_forecast": hourly_forecast,
-            "forecast": forecast,
-            "cached": False
+    current_condition = current.get("condition") or {}
+    astronomy = (forecast_days[0].get("astro") or {})
+    alerts = (data.get("alerts") or {}).get("alert") or []
+    hourly_data = [
+        hour
+        for forecast_day in forecast_days
+        for hour in forecast_day.get("hour", [])
+    ]
+    current_time = location.get("localtime", "")[:13]
+    start_index = next(
+        (
+            i for i, hour in enumerate(hourly_data)
+            if hour.get("time", "")[:13] >= current_time
+        ),
+        0,
+    )
+    hourly_forecast = [
+        {
+            "time": hour.get("time"),
+            "temperature": hour.get("temp_c"),
+            "precipitation_probability": hour.get("chance_of_rain"),
+            "condition": (hour.get("condition") or {}).get("text", "Tidak diketahui"),
         }
+        for hour in hourly_data[start_index:start_index + 24]
+    ]
+    daily_forecast = [
+        {
+            "date": day.get("date"),
+            "condition": (day.get("day", {}).get("condition") or {}).get(
+                "text", "Tidak diketahui"
+            ),
+            "temp_max": day.get("day", {}).get("maxtemp_c"),
+            "temp_min": day.get("day", {}).get("mintemp_c"),
+        }
+        for day in forecast_days[1:6]
+    ]
+    return {
+        "city": city_name or location.get("name", "Lokasi GPS Anda"),
+        "country": country_name or location.get("country", ""),
+        "latitude": lat,
+        "longitude": lon,
+        "is_day": current.get("is_day", 1),
+        "temperature": current.get("temp_c"),
+        "apparent_temperature": current.get("feelslike_c"),
+        "humidity": current.get("humidity"),
+        "wind_speed": current.get("wind_kph"),
+        "uv_index": current.get("uv"),
+        "sunrise": astronomy.get("sunrise"),
+        "sunset": astronomy.get("sunset"),
+        "last_updated": current.get("last_updated"),
+        "condition": current_condition.get("text", "Tidak diketahui"),
+        "hourly_forecast": hourly_forecast,
+        "forecast": daily_forecast,
+        "alerts": [
+            {
+                "headline": alert.get("headline") or alert.get("event", "Peringatan cuaca"),
+                "severity": alert.get("severity", ""),
+                "areas": alert.get("areas", ""),
+                "description": alert.get("desc", ""),
+                "instruction": alert.get("instruction", ""),
+                "expires": alert.get("expires", ""),
+            }
+            for alert in alerts
+        ],
+        "cached": False,
+        "source": "weatherapi",
+    }
 
+
+async def fetch_forecast_by_coords(
+    lat: float,
+    lon: float,
+    city_name: str,
+    country_name: str = "",
+    force_refresh: bool = False,
+):
+    cache_key = f"weather:v4:{round(lat, 2)}:{round(lon, 2)}"
+    if not force_refresh:
         try:
-            await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
-        except Exception:
-            pass
+            cached = await redis_client.get(cache_key)
+            if cached:
+                data = json.loads(cached)
+                data["cached"] = True
+                return data
+        except (redis.RedisError, json.JSONDecodeError) as exc:
+            logger.warning("Cache cuaca tidak dapat dibaca (%s).", type(exc).__name__)
 
-        return result
+    result = await fetch_weatherapi_forecast(lat, lon, city_name, country_name)
+    try:
+        await redis_client.setex(cache_key, CACHE_TTL, json.dumps(result))
+    except redis.RedisError as exc:
+        logger.warning("Cache cuaca tidak dapat disimpan (%s).", type(exc).__name__)
+    return result
 
 @app.get("/api/search")
 async def search_cities(q: str = ""):
     if len(q.strip()) < 2:
         return {"results": []}
-    async with httpx.AsyncClient(timeout=8.0) as client:
-        data = await fetch_json(
-            client,
-            "https://geocoding-api.open-meteo.com/v1/search",
-            {"name": q.strip(), "count": 5, "language": "id", "format": "json"},
-            "pencarian kota",
-        )
-        items = data.get("results", [])
-        return {
-            "results": [
-                {
-                    "id": item.get("id"),
-                    "name": item.get("name"),
-                    "admin1": item.get("admin1", ""),
-                    "country": item.get("country", ""),
-                    "latitude": item.get("latitude"),
-                    "longitude": item.get("longitude"),
-                }
-                for item in items
-            ]
-        }
+    return {"results": await search_weatherapi_cities(q.strip())}
 
 @app.get("/api/weather")
-async def get_weather(city: str = "Jakarta"):
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        geo_data = await fetch_json(
-            client,
-            "https://geocoding-api.open-meteo.com/v1/search",
-            {"name": city, "count": 1, "language": "id", "format": "json"},
-            "pencarian kota",
-        )
-        if not geo_data.get("results"):
-            raise HTTPException(status_code=404, detail=f"Kota '{city}' tidak ditemukan.")
-        loc = geo_data["results"][0]
-        return await fetch_forecast_by_coords(
-            loc["latitude"], loc["longitude"], loc["name"], loc.get("country", "")
-        )
+async def get_weather(city: str = "Jakarta", refresh: bool = False):
+    locations = await search_weatherapi_cities(city.strip())
+    if not locations:
+        raise HTTPException(status_code=404, detail=f"Kota '{city}' tidak ditemukan.")
+    location = locations[0]
+    return await fetch_forecast_by_coords(
+        location["latitude"],
+        location["longitude"],
+        location["name"],
+        location["country"],
+        force_refresh=refresh,
+    )
 
 @app.get("/api/weather/coords")
-async def get_weather_by_coords(lat: float, lon: float):
-    city_name = "Lokasi GPS Anda"
-    country_name = f"{lat:.2f}, {lon:.2f}"
-    try:
-        async with httpx.AsyncClient(timeout=6.0) as client:
-            rev = await client.get(
-                "https://nominatim.openstreetmap.org/reverse",
-                params={"lat": lat, "lon": lon, "format": "json"},
-                headers={"User-Agent": "WeatherDashboardApp/1.0"}
-            )
-            addr = rev.json().get("address", {})
-            city_name = addr.get("city") or addr.get("town") or addr.get("county") or addr.get("state") or city_name
-            country_name = addr.get("country", country_name)
-    except Exception:
-        pass
-    return await fetch_forecast_by_coords(lat, lon, city_name, country_name)
+async def get_weather_by_coords(
+    lat: float,
+    lon: float,
+    city: str = "",
+    country: str = "",
+    refresh: bool = False,
+):
+    city_name = city.strip()
+    country_name = country.strip()
+    return await fetch_forecast_by_coords(
+        lat, lon, city_name, country_name, force_refresh=refresh
+    )
 
 if os.path.isdir("static"):
     from fastapi.staticfiles import StaticFiles
