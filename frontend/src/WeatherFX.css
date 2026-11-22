@@ -1,0 +1,245 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  color: #f8fafc;
+  overflow-x: hidden;
+}
+
+.weather-stage {
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  transition: background 1.2s ease;
+  padding: 36px 20px 64px;
+}
+
+/* Palet Langit yang Segar, Hangat, dan Nyaman Dilihat */
+.theme-clear {
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 52%, #075985 100%);
+}
+
+.theme-cloudy {
+  background: linear-gradient(180deg, #64748b 0%, #475569 50%, #1e293b 100%);
+}
+
+.theme-rain {
+  background: linear-gradient(180deg, #312e81 0%, #1e1b4b 55%, #0f172a 100%);
+}
+
+.theme-storm {
+  background: linear-gradient(180deg, #27272a 0%, #3b0764 55%, #09090b 100%);
+}
+
+.theme-night {
+  background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 55%, #090d16 100%);
+}
+
+/* Scene SVG Full-Screen di Latar Belakang */
+.cute-scene-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.cute-sun-wrap {
+  position: absolute;
+  top: 24px;
+  right: 4%;
+  width: 210px;
+  height: 210px;
+  animation: sunFloat 5s ease-in-out infinite alternate;
+}
+
+.cute-sun-rays {
+  transform-origin: center;
+  animation: spinSlow 36s linear infinite;
+}
+
+@keyframes sunFloat {
+  0% { transform: translateY(0px) scale(0.97); }
+  100% { transform: translateY(-10px) scale(1.04); }
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Animasi Awan Cute Mengapung & Membal Halus */
+.cute-cloud-float-1 {
+  position: absolute;
+  top: 8%;
+  left: -180px;
+  width: 230px;
+  animation: driftAcross 38s linear infinite, cloudSquish 4s ease-in-out infinite alternate;
+}
+
+.cute-cloud-float-2 {
+  position: absolute;
+  top: 26%;
+  left: -260px;
+  width: 280px;
+  opacity: 0.92;
+  animation: driftAcross 52s linear infinite, cloudSquish 5s ease-in-out infinite alternate;
+  animation-delay: -16s, -1s;
+}
+
+.cute-cloud-float-3 {
+  position: absolute;
+  top: 62%;
+  left: -220px;
+  width: 210px;
+  opacity: 0.85;
+  animation: driftAcross 44s linear infinite, cloudSquish 4.5s ease-in-out infinite alternate;
+  animation-delay: -28s, -2s;
+}
+
+@keyframes driftAcross {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(100vw + 340px)); }
+}
+
+@keyframes cloudSquish {
+  0% { scale: 1 1; }
+  100% { scale: 1.04 0.96; }
+}
+
+/* Rintik Hujan Lembut */
+.rain-drop {
+  position: absolute;
+  top: -25px;
+  width: 3px;
+  height: 18px;
+  background: linear-gradient(to bottom, transparent, rgba(186, 230, 253, 0.85));
+  border-radius: 999px;
+  animation: rainFall linear infinite;
+}
+
+@keyframes rainFall {
+  0% { transform: translateY(-25px) rotate(10deg); opacity: 0; }
+  15% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(105vh) rotate(10deg); opacity: 0; }
+}
+
+/* Bintang Berkelip (Malam) */
+.star-twinkle {
+  position: absolute;
+  background: #fef08a;
+  border-radius: 50%;
+  animation: twinkle 2.8s ease-in-out infinite alternate;
+}
+
+@keyframes twinkle {
+  0% { opacity: 0.25; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1.25); }
+}
+
+/* Konten Utama & Kartu Glassmorphism */
+.content-wrapper {
+  position: relative;
+  z-index: 1;
+  max-width: 580px;
+  margin: 0 auto;
+}
+
+.glass-card {
+  background: rgba(15, 23, 42, 0.56);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 22px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
+  animation: cardFadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardFadeUp {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.floating-icon {
+  display: inline-block;
+  font-size: 3.4rem;
+  line-height: 1;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.35));
+  animation: floatIcon 3.2s ease-in-out infinite;
+}
+
+@keyframes floatIcon {
+  0%, 100% { transform: translateY(0px) rotate(-2deg); }
+  50% { transform: translateY(-8px) rotate(3deg); }
+}
+
+/* Dropdown Autocomplete */
+.autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  overflow: hidden;
+  z-index: 30;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
+}
+
+.autocomplete-item {
+  padding: 11px 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  transition: background 0.15s ease;
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover {
+  background: rgba(56, 189, 248, 0.25);
+}
+
+.forecast-row {
+  display: grid;
+  grid-template-columns: 115px 1fr auto;
+  align-items: center;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  font-size: 0.9rem;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.forecast-row:hover {
+  transform: translateX(4px);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.fav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease;
+}
+
+.fav-chip:hover {
+  transform: translateY(-2px);
+}
