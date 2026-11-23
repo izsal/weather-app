@@ -2,11 +2,12 @@ import asyncio
 import json
 import logging
 import os
+import time
 
 import httpx
 import redis.asyncio as redis
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 
 load_dotenv()
 
@@ -17,6 +18,26 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 CACHE_TTL = 600  # Cache 10 menit
 WEATHERAPI_KEY = os.getenv("WEATHERAPI_KEY", "").strip()
 redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_MAX_REQUESTS = 120
+rate_limit_hits = {}
+
+
+@app.middleware("http")
+async def apply_api_rate_limit(request: Request, call_next):
+    if not request.url.path.startswith("/api/"):
+        return await call_next(request)
+
+    now = time.monotonic()
+    client_ip = request.client.host if request.client else "unknown"
+    window_start, count = rate_limit_hits.get(client_ip, (now, 0))
+    if now - window_start >= RATE_LIMIT_WINDOW_SECONDS:
+        window_start, count = now, 0
+    count += 1
+    rate_limit_hits[client_ip] = (window_start, count)
+    if count > RATE_LIMIT_MAX_REQUESTS:
+        raise HTTPException(status_code=429, detail="Terlalu banyak permintaan. Coba lagi sebentar.")
+    return await call_next(request)
 
 
 def require_weatherapi_key():
@@ -143,7 +164,13 @@ async def fetch_weatherapi_forecast(lat, lon, city_name, country_name):
         {
             "time": hour.get("time"),
             "temperature": hour.get("temp_c"),
+            "apparent_temperature": hour.get("feelslike_c"),
+            "humidity": hour.get("humidity"),
+            "wind_speed": hour.get("wind_kph"),
+            "wind_direction": hour.get("wind_dir"),
+            "uv_index": hour.get("uv"),
             "precipitation_probability": hour.get("chance_of_rain"),
+            "rain_mm": hour.get("precip_mm"),
             "condition": (hour.get("condition") or {}).get("text", "Tidak diketahui"),
         }
         for hour in hourly_data[start_index:start_index + 24]
@@ -156,6 +183,11 @@ async def fetch_weatherapi_forecast(lat, lon, city_name, country_name):
             ),
             "temp_max": day.get("day", {}).get("maxtemp_c"),
             "temp_min": day.get("day", {}).get("mintemp_c"),
+            "humidity": day.get("day", {}).get("avghumidity"),
+            "max_wind_speed": day.get("day", {}).get("maxwind_kph"),
+            "uv_index": day.get("day", {}).get("uv"),
+            "precipitation_probability": day.get("day", {}).get("daily_chance_of_rain"),
+            "rain_mm": day.get("day", {}).get("totalprecip_mm"),
         }
         for day in forecast_days[1:6]
     ]
@@ -171,6 +203,7 @@ async def fetch_weatherapi_forecast(lat, lon, city_name, country_name):
         "apparent_temperature": current.get("feelslike_c"),
         "humidity": current.get("humidity"),
         "wind_speed": current.get("wind_kph"),
+        "wind_direction": current.get("wind_dir"),
         "uv_index": current.get("uv"),
         "sunrise": astronomy.get("sunrise"),
         "sunset": astronomy.get("sunset"),
@@ -218,6 +251,20 @@ async def fetch_forecast_by_coords(
     except redis.RedisError as exc:
         logger.warning("Cache cuaca tidak dapat disimpan (%s).", type(exc).__name__)
     return result
+
+@app.get("/api/health")
+async def health_check():
+    redis_status = "ok"
+    try:
+        await redis_client.ping()
+    except Exception as exc:
+        redis_status = "degraded"
+        logger.warning("Health check Redis gagal: %s", type(exc).__name__)
+    return {
+        "status": "ok" if redis_status == "ok" else "degraded",
+        "weather_provider_configured": bool(WEATHERAPI_KEY),
+        "redis": redis_status,
+    }
 
 @app.get("/api/search")
 async def search_cities(q: str = ""):

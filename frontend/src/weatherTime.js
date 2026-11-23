@@ -56,3 +56,25 @@ export function getDayPhase(weather, now) {
   }
   return { phase: 'night', progress: 1, twilight: 0 }
 }
+
+export function getPersonalGreeting(dayPhase, city = '', condition = '') {
+  const location = city ? ` di ${city}` : ''
+  const text = String(condition ?? '').toLocaleLowerCase()
+  const weatherCopy = text.includes('hujan')
+    ? 'Payungmu bisa jadi teman baik hari ini.'
+    : text.includes('snow') || text.includes('salju')
+      ? 'Bawa hangat-hangat, suasananya terasa seperti dongeng.'
+      : text.includes('badai') || text.includes('petir')
+        ? 'Lebih aman menikmati langit dari tempat teduh.'
+        : text.includes('berkabut') || text.includes('kabut') || text.includes('fog')
+          ? 'Biar langkahmu pelan, kabut sedang menyapa.'
+          : ''
+
+  let timeCopy
+  if (dayPhase.phase === 'night') timeCopy = `Waktunya pelan-pelan${location}. Malam ini milikmu untuk beristirahat.`
+  else if (dayPhase.phase === 'dawn') timeCopy = `Selamat pagi${location}. Awali hari dengan napas yang segar.`
+  else if (dayPhase.phase === 'dusk') timeCopy = `Sore yang hangat${location}. Nikmati momen golden hour sebentar.`
+  else timeCopy = `Semoga harimu menyenangkan${location}. Ada cuaca baru yang bisa kamu rasakan.`
+
+  return weatherCopy ? `${timeCopy} ${weatherCopy}` : timeCopy
+}

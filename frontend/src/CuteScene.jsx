@@ -23,6 +23,7 @@ import {
 function makeCloud() {
   const cloud = new Group()
   const white = new MeshBasicMaterial({ color: '#ffffff' })
+  const outline = new MeshBasicMaterial({ color: '#3a3f75' })
   const puffs = [
     [-0.48, -0.02, 0.39],
     [-0.19, 0.18, 0.5],
@@ -31,15 +32,20 @@ function makeCloud() {
   ]
 
   puffs.forEach(([x, y, radius]) => {
+    const border = new Mesh(new CircleGeometry(radius + 0.055, 32), outline)
+    border.position.set(x, y, 0)
     const puff = new Mesh(new CircleGeometry(radius, 32), white)
-    puff.position.set(x, y, 0)
-    cloud.add(puff)
+    puff.position.set(x, y, 0.02)
+    cloud.add(border, puff)
   })
 
+  const baseOutline = new Mesh(new CircleGeometry(1, 32), outline)
+  baseOutline.scale.set(0.82, 0.29, 1)
+  baseOutline.position.set(0, -0.16, 0)
   const base = new Mesh(new CircleGeometry(1, 32), white)
   base.scale.set(0.75, 0.22, 1)
-  base.position.set(0, -0.16, 0.02)
-  cloud.add(base)
+  base.position.set(0, -0.16, 0.03)
+  cloud.add(baseOutline, base)
 
   const eyeMaterial = new MeshBasicMaterial({ color: '#334155' })
   const cheekMaterial = new MeshBasicMaterial({ color: '#fb91a8', transparent: true, opacity: 0.8 })
@@ -148,6 +154,92 @@ function makeHeart(color) {
   )
 }
 
+function QwartsCloudMascot({ rainy = false }) {
+  return (
+    <svg viewBox="0 0 260 220" role="img" aria-label={rainy ? 'Maskot Qwarts Rainy' : 'Maskot Qwarts Cloud'}>
+      <defs>
+        <linearGradient id="qwarts-cloud-body" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor={rainy ? '#b9dff5' : '#eef7ff'} />
+        </linearGradient>
+      </defs>
+      <g filter="url(#qwarts-shadow)">
+        <path
+          d="M55 145c-25 0-43-19-43-43 0-22 16-40 37-43 4-35 29-53 57-53 31 0 55 19 60 50 27-3 49 15 49 42 0 27-21 47-48 47H55z"
+          fill="url(#qwarts-cloud-body)"
+          stroke={rainy ? '#6da6c8' : '#96a3b8'}
+          strokeWidth="7"
+          strokeLinejoin="round"
+        />
+        <ellipse cx="89" cy="96" rx="9" ry="9" fill="#3f4a67" />
+        <ellipse cx="150" cy="96" rx="9" ry="9" fill="#3f4a67" />
+        <ellipse cx="86" cy="92" rx="2.5" ry="3" fill="#ffffff" />
+        <ellipse cx="147" cy="92" rx="2.5" ry="3" fill="#ffffff" />
+        <ellipse cx="63" cy="126" rx="17" ry="10" fill="#ffadc2" />
+        <ellipse cx="176" cy="126" rx="17" ry="10" fill="#ffadc2" />
+        <path d="M104 123c9 15 28 15 37 0" fill="none" stroke="#3f4a67" strokeWidth="5" strokeLinecap="round" />
+        {rainy && (
+          <g fill="#79bce4">
+            <path d="M72 161c-2 11 2 18 10 18 8 0 12-7 10-18-3-10-17-10-20 0z" />
+            <path d="M120 166c-2 11 2 18 10 18 8 0 12-7 10-18-3-10-17-10-20 0z" />
+            <path d="M168 161c-2 11 2 18 10 18 8 0 12-7 10-18-3-10-17-10-20 0z" />
+          </g>
+        )}
+      </g>
+    </svg>
+  )
+}
+
+function SunnyMascot() {
+  return (
+    <svg viewBox="0 0 260 260" role="img" aria-label="Maskot Qwarts Sunny">
+      <g fill="#ffca28">
+        <path d="M130 2l24 44-48 0z" />
+        <path d="M130 258l24-44h-48z" />
+        <path d="M2 130l44-24v48z" />
+        <path d="M258 130l-44-24v48z" />
+        <path d="M39 39l48 7-31 31z" />
+        <path d="M221 39l-48 7 31 31z" />
+        <path d="M39 221l48-7-31-31z" />
+        <path d="M221 221l-48-7 31-31z" />
+      </g>
+      <circle cx="130" cy="130" r="82" fill="#ffc83d" stroke="#fff0a6" strokeWidth="8" />
+      <ellipse cx="94" cy="126" rx="8" ry="12" fill="#5f4a28" />
+      <ellipse cx="166" cy="126" rx="8" ry="12" fill="#5f4a28" />
+      <ellipse cx="91" cy="122" rx="2" ry="3" fill="#ffffff" />
+      <ellipse cx="163" cy="122" rx="2" ry="3" fill="#ffffff" />
+      <ellipse cx="72" cy="158" rx="21" ry="14" fill="#ff9f91" />
+      <ellipse cx="188" cy="158" rx="21" ry="14" fill="#ff9f91" />
+      <path d="M112 158c8 12 28 12 36 0" fill="none" stroke="#5f4a28" strokeWidth="6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function LunaMascot() {
+  return (
+    <svg viewBox="0 0 260 260" role="img" aria-label="Maskot Qwarts Luna">
+      <defs>
+        <linearGradient id="qwarts-moon" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#fff8ba" />
+          <stop offset="100%" stopColor="#f1b7df" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M176 31c-57 8-96 59-84 116 12 58 69 94 126 75-24 4-50-2-70-17-44-32-54-94-22-138 15-21 35-31 50-36z"
+        fill="url(#qwarts-moon)"
+        stroke="#e99bc7"
+        strokeWidth="7"
+        strokeLinejoin="round"
+      />
+      <path d="M118 153c9 10 27 10 36 0" fill="none" stroke="#6b4d78" strokeWidth="5" strokeLinecap="round" />
+      <path d="M92 132c7-7 16-7 23 0" fill="none" stroke="#6b4d78" strokeWidth="5" strokeLinecap="round" />
+      <path d="M157 132c7-7 16-7 23 0" fill="none" stroke="#6b4d78" strokeWidth="5" strokeLinecap="round" />
+      <ellipse cx="83" cy="164" rx="16" ry="9" fill="#ffadca" />
+      <ellipse cx="190" cy="164" rx="16" ry="9" fill="#ffadca" />
+    </svg>
+  )
+}
+
 export default function CuteScene({
   visual,
   isDay = 1,
@@ -160,6 +252,18 @@ export default function CuteScene({
   const dayPhaseRef = useRef(dayPhase)
   dayPhaseRef.current = dayPhase
   const [webglUnavailable, setWebglUnavailable] = useState(false)
+  const nighttime = dayPhase.phase === 'night'
+  const terrainColors = visual.snow
+    ? (nighttime ? ['#dbe7f6', '#b9c9e6'] : ['#f1f7ff', '#dcebf8'])
+    : visual.storm
+      ? (nighttime ? ['#40516e', '#34445f'] : ['#5aa383', '#438a6b'])
+      : visual.rain
+        ? (nighttime ? ['#48617b', '#3d5570'] : ['#79c49a', '#55ab7c'])
+        : visual.fog
+          ? (nighttime ? ['#69769d', '#58668b'] : ['#a9d9b5', '#8cc9a0'])
+          : nighttime
+            ? ['#668478', '#506b69']
+            : ['#9be37f', '#6fcf6a']
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -183,7 +287,9 @@ export default function CuteScene({
     const scene = new Scene()
     const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 30)
     camera.position.z = 12
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
+    const lowPowerDevice = window.matchMedia?.('(max-width: 560px)').matches
+      || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, lowPowerDevice ? 1 : 1.5))
     renderer.setClearColor(0x000000, 0)
 
     let worldWidth = 8
@@ -280,7 +386,7 @@ export default function CuteScene({
       return star
     })
 
-    const sparkles = Array.from({ length: 24 }, (_, index) => {
+    const sparkles = Array.from({ length: 12 }, (_, index) => {
       const sparkle = new Mesh(
         new PlaneGeometry(0.12, 0.12),
         new MeshBasicMaterial({
@@ -296,7 +402,7 @@ export default function CuteScene({
       return sparkle
     })
 
-    const hearts = Array.from({ length: 8 }, (_, index) => {
+    const hearts = Array.from({ length: 5 }, (_, index) => {
       const heart = makeHeart(index % 2 ? '#fda4af' : '#fbcfe8')
       heart.position.set(((index * 1.413) % 2 - 1) * worldWidth, -4.5 - index * 0.9, -0.15)
       heart.scale.setScalar(0.55 + (index % 3) * 0.14)
@@ -312,13 +418,16 @@ export default function CuteScene({
     const isRain = visual.rain && !visual.snow && !visual.hail
     const safeRainChance = Math.min(Math.max(Number(rainChance) || 0, 0), 100)
     const safeWindSpeed = Math.min(Math.max(Number(windSpeed) || 0, 0), 100)
-    const particleCount = visual.hail
+    const nominalParticleCount = visual.hail
       ? 32
       : visual.snow
         ? 64
         : isRain
-          ? Math.round(28 + safeRainChance * 0.92)
+          ? Math.round(18 + safeRainChance * 0.55)
           : 0
+    const particleCount = lowPowerDevice
+      ? Math.round(nominalParticleCount * 0.55)
+      : nominalParticleCount
     const particleGeometry = new BufferGeometry()
     const particlePositions = new Float32Array(particleCount * (isRain ? 18 : 3))
     const particleHeads = isRain ? new Float32Array(particleCount * 2) : null
@@ -438,11 +547,17 @@ export default function CuteScene({
 
     let animationFrame = 0
     let previousTime = 0
+    let lastRenderTime = 0
     const animate = (time) => {
       if (document.hidden) {
         animationFrame = window.requestAnimationFrame(animate)
         return
       }
+      if (time - lastRenderTime < 33) {
+        animationFrame = window.requestAnimationFrame(animate)
+        return
+      }
+      lastRenderTime = time
 
       const elapsed = Math.min((time - previousTime) / 1000, 0.05)
       previousTime = time
@@ -587,6 +702,15 @@ export default function CuteScene({
 
   return (
     <div className="cute-scene-layer" aria-hidden="true">
+      <svg className="cute-scene-terrain" viewBox="0 0 1440 300" preserveAspectRatio="none">
+        <path d="M0 128C180 68 315 86 510 158c178 66 302 68 470-2 188-79 296-65 460-9v153H0z" fill={terrainColors[0]} />
+        <path d="M0 199c173-72 346-78 541-18 194 59 335 62 524-4 139-48 254-35 375 16v107H0z" fill={terrainColors[1]} />
+        <g fill={visual.snow ? '#ffffff' : '#6fcf7a'} stroke={visual.snow ? '#cbdcf1' : '#3a3f75'} strokeWidth="5" strokeLinejoin="round">
+          <path d="M183 210v-39h12v39zm-14-35 20-31 20 31z" />
+          <path d="M1210 231v-48h13v48zm-19-42 25-39 25 39z" />
+          <path d="M1282 224v-35h11v35zm-14-32 19-30 20 30z" />
+        </g>
+      </svg>
       <canvas
         className="cute-scene-canvas"
         ref={canvasRef}
@@ -638,6 +762,16 @@ export default function CuteScene({
           {visual.storm && <span className="storm-flash" />}
         </div>
       )}
+      <div className={`qwarts-mascot qwarts-mascot-${dayPhase.phase}`} aria-hidden="true">
+        {dayPhase.phase === 'night'
+          ? <LunaMascot />
+          : visual.sun
+            ? <SunnyMascot />
+            : visual.rain || visual.snow || visual.hail || visual.storm
+              ? <QwartsCloudMascot rainy />
+              : <QwartsCloudMascot />}
+        <span className="qwarts-mascot-shadow" />
+      </div>
     </div>
   )
 }

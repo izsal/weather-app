@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { getWeatherVisual } from './weatherVisual.js'
+import { getWeatherPersonality, getWeatherVisual } from './weatherVisual.js'
 
 test('maps snow, hail, and fog to matching animated scenes', () => {
   assert.equal(getWeatherVisual('Salju ringan').snow, true)
@@ -32,4 +32,9 @@ test('uses a neutral cloudy scene instead of incorrectly defaulting unknown weat
   assert.equal(visual.clouds, true)
   assert.equal(visual.sun, false)
   assert.equal(visual.icon, '☁️')
+})
+
+test('returns a distinct personality for rainy and snowy weather', () => {
+  assert.equal(getWeatherPersonality('Hujan ringan').label, 'Tenang dan cozy')
+  assert.match(getWeatherPersonality('Salju ringan').copy, /dongeng/)
 })

@@ -26,7 +26,8 @@ Full-stack Weather Dashboard built with FastAPI and React Vite.
 - Bagikan kondisi cuaca melalui tautan yang membuka kota terkait.
 - Cari kota dengan autocomplete; Enter memakai hasil lokasi yang cocok. Bisa juga gunakan lokasi GPS.
 - Ganti satuan suhu Celsius/Fahrenheit; pilihan disimpan di browser.
-- Animasi latar cute dapat dinyalakan atau dimatikan melalui tombol di bagian atas dashboard.
+- Animasi latar ilustratif dapat dinyalakan atau dimatikan melalui tombol di bagian atas dashboard; langit dan lanskap berubah mengikuti kondisi cuaca dan waktu.
+- Ambience suara cuaca dapat dinyalakan secara manual dan menyesuaikan kondisi cerah, berawan, hujan, badai, salju, atau kabut.
 - Animasi latar menyesuaikan kondisi: cerah, berawan, hujan, badai, salju, hujan es, dan kabut, termasuk tampilan malam.
 - Animasi latar dirender dengan Three.js dan mengikuti preferensi reduced motion perangkat.
 

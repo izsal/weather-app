@@ -1,8 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { lazy, Suspense, useState, useEffect, useRef } from 'react'
 import './WeatherFX.css'
-import CuteScene from './CuteScene.jsx'
-import { getWeatherVisual } from './weatherVisual.js'
-import { getDayPhase } from './weatherTime.js'
+import { getWeatherPersonality, getWeatherVisual } from './weatherVisual.js'
+import { getDayPhase, getPersonalGreeting } from './weatherTime.js'
+import useWeatherSound from './useWeatherSound.js'
+import { WeatherAlerts, WeatherHighlights } from './WeatherSections.jsx'
+
+const CuteScene = lazy(() => import('./CuteScene.jsx'))
 
 const STORAGE_KEY = 'weather_favorite_cities'
 const UNIT_STORAGE_KEY = 'weather_temperature_unit'
@@ -62,6 +65,7 @@ export default function App() {
   const initialCity = new URLSearchParams(window.location.search).get('city')?.trim() || 'Jakarta'
   const [query, setQuery] = useState(initialCity)
   const [suggestions, setSuggestions] = useState([])
+  const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1)
   const [suggestionQuery, setSuggestionQuery] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
   const [weather, setWeather] = useState(null)
@@ -71,6 +75,7 @@ export default function App() {
   const [canRetry, setCanRetry] = useState(false)
   const [shareStatus, setShareStatus] = useState('')
   const [shareLink, setShareLink] = useState('')
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine)
   const [selectedForecastHour, setSelectedForecastHour] = useState('')
   const [selectedForecastDay, setSelectedForecastDay] = useState('')
   const [clockNow, setClockNow] = useState(() => Date.now())
@@ -119,6 +124,17 @@ export default function App() {
     return () => window.clearInterval(timer)
   }, [])
 
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
   // Tutup dropdown autocomplete saat klik di luar form
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -134,6 +150,7 @@ export default function App() {
   useEffect(() => {
     if (!showDropdown || query.trim().length < 2) {
       setSuggestions([])
+      setActiveSuggestionIndex(-1)
       setSuggestionQuery('')
       return
     }
@@ -148,6 +165,7 @@ export default function App() {
         })
         const data = await readApiResponse(res, 'Gagal mencari kota.')
         setSuggestions(data.results || [])
+        setActiveSuggestionIndex(-1)
         setSuggestionQuery(searchQuery)
       } catch (err) {
         if (err.name !== 'AbortError') setSuggestions([])
@@ -244,6 +262,29 @@ export default function App() {
     fetchWeather(query)
   }
 
+  const handleSearchKeyDown = (event) => {
+    if (!showDropdown || suggestions.length === 0) {
+      if (event.key === 'Escape') setShowDropdown(false)
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveSuggestionIndex((index) => (index + 1) % suggestions.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveSuggestionIndex((index) => (
+        index <= 0 ? suggestions.length - 1 : index - 1
+      ))
+    } else if (event.key === 'Enter' && activeSuggestionIndex >= 0) {
+      event.preventDefault()
+      handleSelectSuggestion(suggestions[activeSuggestionIndex])
+    } else if (event.key === 'Escape') {
+      setShowDropdown(false)
+      setActiveSuggestionIndex(-1)
+    }
+  }
+
   const handleSelectSuggestion = (item) => {
     setQuery(item.name)
     setShowDropdown(false)
@@ -309,7 +350,10 @@ export default function App() {
   }
 
   const visual = getWeatherVisual(weather?.condition, weather?.is_day ?? 1)
+  const { enabled: weatherSoundEnabled, error: weatherSoundError, toggle: toggleWeatherSound } = useWeatherSound(visual)
   const dayPhase = getDayPhase(weather, clockNow)
+  const personality = getWeatherPersonality(weather?.condition, weather?.is_day ?? 1)
+  const personalizedGreeting = getPersonalGreeting(dayPhase, weather?.city, weather?.condition)
   const rainChance = Math.max(
     0,
     ...(weather?.hourly_forecast || [])
@@ -349,65 +393,80 @@ export default function App() {
         />
       )}
       {/* Ilustrasi Background Cute & Cozy */}
-      <CuteScene
-        visual={visual}
-        dayPhase={dayPhase}
-        rainChance={rainChance}
-        windSpeed={weather?.wind_speed ?? 0}
-        motionEnabled={backgroundMotion}
-      />
+      <Suspense fallback={null}>
+        <CuteScene
+          visual={visual}
+          dayPhase={dayPhase}
+          rainChance={rainChance}
+          windSpeed={weather?.wind_speed ?? 0}
+          motionEnabled={backgroundMotion}
+        />
+      </Suspense>
 
       <div className="content-wrapper">
+        {!isOnline && (
+          <div className="offline-banner" role="status">
+            Anda sedang offline. Data cuaca terakhir tetap ditampilkan jika tersedia.
+          </div>
+        )}
         <div className="app-header" style={{ marginBottom: '6px' }}>
-          <h1 style={{ fontSize: '1.85rem', margin: 0, fontWeight: 700, letterSpacing: '-0.02em', textShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
-            Weather Dashboard
-          </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className="qwarts-brand">
+            <h1>Qwarts</h1>
+            <span>Weather, with a little personality.</span>
+          </div>
+          <div className="header-actions">
+            <details className="quick-settings">
+              <summary aria-label="Pengaturan tampilan">⚙</summary>
+              <div className="quick-settings-panel">
+                <button
+                  type="button"
+                  className="motion-toggle"
+                  aria-pressed={backgroundMotion}
+                  onClick={() => setBackgroundMotion((enabled) => !enabled)}
+                  title="Nyalakan atau hentikan animasi latar"
+                >
+                  {backgroundMotion ? '✨ Animasi: Nyala' : '✨ Animasi: Mati'}
+                </button>
+                <button
+                  type="button"
+                  className="sound-toggle"
+                  aria-pressed={weatherSoundEnabled}
+                  onClick={toggleWeatherSound}
+                  title="Nyalakan atau matikan ambience yang mengikuti cuaca"
+                >
+                  {weatherSoundEnabled ? '🔊 Suara: Nyala' : '🔇 Suara: Mati'}
+                </button>
+                <div className="unit-toggle" role="group" aria-label="Satuan suhu">
+                  <button
+                    type="button"
+                    aria-pressed={temperatureUnit === 'celsius'}
+                    onClick={() => setTemperatureUnit('celsius')}
+                  >
+                    °C
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={temperatureUnit === 'fahrenheit'}
+                    onClick={() => setTemperatureUnit('fahrenheit')}
+                  >
+                    °F
+                  </button>
+                </div>
+              </div>
+            </details>
             <button
               type="button"
-              className="motion-toggle"
-              aria-pressed={backgroundMotion}
-              onClick={() => setBackgroundMotion((enabled) => !enabled)}
-              title="Nyalakan atau hentikan animasi latar"
-            >
-              {backgroundMotion ? '✨ Animasi: Nyala' : '✨ Animasi: Mati'}
-            </button>
-            <div className="unit-toggle" role="group" aria-label="Satuan suhu">
-              <button
-                type="button"
-                aria-pressed={temperatureUnit === 'celsius'}
-                onClick={() => setTemperatureUnit('celsius')}
-              >
-                °C
-              </button>
-              <button
-                type="button"
-                aria-pressed={temperatureUnit === 'fahrenheit'}
-                onClick={() => setTemperatureUnit('fahrenheit')}
-              >
-                °F
-              </button>
-            </div>
-            <button
-              type="button"
+              className="gps-button"
               onClick={fetchWeatherByGPS}
               disabled={gpsLoading}
-              style={{
-                padding: '7px 13px',
-                borderRadius: '999px',
-                border: '1px solid rgba(255,255,255,0.28)',
-                background: 'rgba(15, 23, 42, 0.45)',
-                backdropFilter: 'blur(10px)',
-                color: '#f8fafc',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
             >
               {gpsLoading ? 'Mendeteksi...' : '📍 Lokasi Saya'}
             </button>
           </div>
         </div>
+        {weatherSoundError && (
+          <p className="sound-status" role="status">{weatherSoundError}</p>
+        )}
 
         {/* Bar Kota Favorit */}
         {favorites.length > 0 && (
@@ -415,24 +474,19 @@ export default function App() {
             {favorites.map((favCity) => {
               const active = weather?.city.toLowerCase() === favCity.toLowerCase()
               return (
-                <div
-                  key={favCity}
-                  className="fav-chip"
-                  onClick={() => fetchWeather(favCity)}
-                  style={{
-                    background: active ? 'rgba(56, 189, 248, 0.45)' : 'rgba(15, 23, 42, 0.48)',
-                    color: '#fff',
-                    border: `1px solid ${active ? '#bae6fd' : 'rgba(255,255,255,0.22)'}`
-                  }}
-                >
-                  <span>{favCity}</span>
-                  <span
+                <div key={favCity} className={`fav-chip ${active ? 'is-active' : ''}`}>
+                  <button type="button" onClick={() => fetchWeather(favCity)} aria-label={`Lihat cuaca ${favCity}`}>
+                    {favCity}
+                  </button>
+                  <button
+                    type="button"
+                    className="fav-remove"
                     onClick={(e) => removeFavorite(e, favCity)}
                     title="Hapus dari favorit"
-                    style={{ fontSize: '0.75rem', opacity: 0.8, paddingLeft: '2px' }}
+                    aria-label={`Hapus ${favCity} dari favorit`}
                   >
                     ✕
-                  </span>
+                  </button>
                 </div>
               )
             })}
@@ -440,9 +494,11 @@ export default function App() {
         )}
 
         {/* Form Pencarian + Autocomplete Dropdown */}
-        <div ref={searchBoxRef} style={{ position: 'relative', marginBottom: '24px' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '8px' }}>
+        <div ref={searchBoxRef} className="search-box">
+          <form onSubmit={handleSubmit} className="search-form" role="search">
+            <label className="sr-only" htmlFor="city-search">Cari kota</label>
             <input
+              id="city-search"
               type="text"
               value={query}
               onFocus={() => setShowDropdown(true)}
@@ -450,44 +506,35 @@ export default function App() {
                 setQuery(e.target.value)
                 setShowDropdown(true)
               }}
+              onKeyDown={handleSearchKeyDown}
               placeholder="Ketik nama kota (mis. Bandung, Tokyo, Seoul)..."
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                borderRadius: '14px',
-                border: '1px solid rgba(255,255,255,0.25)',
-                background: 'rgba(15, 23, 42, 0.55)',
-                backdropFilter: 'blur(12px)',
-                color: '#f8fafc',
-                fontSize: '1rem',
-                outline: 'none'
-              }}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={showDropdown && suggestions.length > 0}
+              aria-controls="city-suggestions"
+              aria-activedescendant={
+                activeSuggestionIndex >= 0
+                  ? `city-suggestion-${activeSuggestionIndex}`
+                  : undefined
+              }
             />
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                padding: '12px 22px',
-                borderRadius: '14px',
-                border: 'none',
-                background: '#38bdf8',
-                color: '#0f172a',
-                fontWeight: '700',
-                cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(56, 189, 248, 0.4)'
-              }}
-            >
+            <button type="submit" className="search-submit" disabled={loading}>
               {loading ? '...' : 'Cari'}
             </button>
           </form>
 
           {showDropdown && suggestions.length > 0 && (
-            <div className="autocomplete-dropdown">
-              {suggestions.map((item) => (
-                <div
+            <div className="autocomplete-dropdown" id="city-suggestions" role="listbox">
+              {suggestions.map((item, index) => (
+                <button
                   key={item.id || `${item.latitude}-${item.longitude}`}
-                  className="autocomplete-item"
+                  id={`city-suggestion-${index}`}
+                  type="button"
+                  role="option"
+                  aria-selected={activeSuggestionIndex === index}
+                  className={`autocomplete-item ${activeSuggestionIndex === index ? 'is-active' : ''}`}
                   onClick={() => handleSelectSuggestion(item)}
+                  onMouseEnter={() => setActiveSuggestionIndex(index)}
                 >
                   <div>
                     <div style={{ fontWeight: 600, color: '#f8fafc' }}>{item.name}</div>
@@ -496,7 +543,7 @@ export default function App() {
                     </div>
                   </div>
                   <span style={{ fontSize: '0.75rem', color: '#38bdf8' }}>Pilih →</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -527,9 +574,17 @@ export default function App() {
         )}
 
         {weather && (
-          <div key={weather.city + weather.temperature}>
+          <main key={weather.city + weather.temperature} aria-busy={loading}>
             {/* Kartu Cuaca Saat Ini */}
-            <div className="glass-card" style={{ padding: '26px', marginBottom: '16px' }}>
+            <div className="glass-card current-weather-card" style={{ padding: '26px', marginBottom: '16px' }}>
+              <div className="weather-personality-banner" aria-label="Pesan cuaca dari Qwarts">
+                <span className="personality-avatar" aria-hidden="true">{visual.icon}</span>
+                <div>
+                  <strong>{personality.label}</strong>
+                  <p>{personality.copy}</p>
+                </div>
+              </div>
+              <p className="personal-greeting">{personalizedGreeting}</p>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
@@ -557,6 +612,7 @@ export default function App() {
                     <span className="data-source">
                       {weather.source || 'WeatherAPI'}{weather.cached ? ' · dari cache' : ''}
                     </span>
+                    {loading && <span className="refresh-status">Memperbarui data…</span>}
                     <button type="button" onClick={retryWeather} disabled={loading}>
                       {loading ? 'Memuat...' : '↻ Perbarui'}
                     </button>
@@ -606,45 +662,42 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="weather-highlights">
-                <div className="highlight-card">
-                  <span>☀️ Indeks UV</span>
-                  <strong>{weather.uv_index ?? '—'}</strong>
-                  <small>{getUvDescription(weather.uv_index)}</small>
-                </div>
-                <div className="highlight-card">
-                  <span>🌅 Matahari terbit</span>
-                  <strong>{formatSunTime(weather.sunrise)}</strong>
-                  <small>Waktu setempat</small>
-                </div>
-                <div className="highlight-card">
-                  <span>🌇 Matahari terbenam</span>
-                  <strong>{formatSunTime(weather.sunset)}</strong>
-                  <small>Waktu setempat</small>
-                </div>
-              </div>
+              <WeatherHighlights
+                weather={weather}
+                formatTemperature={formatTemperature}
+                formatSunTime={formatSunTime}
+                getUvDescription={getUvDescription}
+              />
             </div>
 
-            {weather.alerts?.length > 0 ? (
-              <section className="weather-alerts" aria-label="Peringatan cuaca aktif">
-                <h3>⚠️ Peringatan cuaca</h3>
-                {weather.alerts.map((alert, index) => (
-                  <article className="weather-alert" key={`${alert.headline}-${index}`}>
-                    <div className="alert-heading">
-                      <strong>{alert.headline}</strong>
-                      {alert.severity && <span>{alert.severity}</span>}
-                    </div>
-                    {alert.areas && <p className="alert-areas">Area: {alert.areas}</p>}
-                    {alert.description && <p>{alert.description}</p>}
-                    {alert.instruction && <p><strong>Saran:</strong> {alert.instruction}</p>}
-                    {alert.expires && <small>Berlaku sampai {alert.expires}</small>}
-                  </article>
-                ))}
+            <WeatherAlerts alerts={weather.alerts} />
+
+            {weather.hourly_forecast?.length > 1 && (
+              <section className="glass-card temperature-chart" aria-label="Grafik suhu 24 jam">
+                <div className="chart-heading">
+                  <div>
+                    <h3>Perjalanan suhu</h3>
+                    <p>24 jam ke depan</p>
+                  </div>
+                  <strong>{formatTemperature(weather.temperature)}</strong>
+                </div>
+                <div className="chart-bars" role="img" aria-label="Grafik perubahan suhu per jam">
+                  {weather.hourly_forecast.slice(0, 12).map((hour, index) => {
+                    const temperatures = weather.hourly_forecast.slice(0, 12).map((item) => Number(item.temperature) || 0)
+                    const minimum = Math.min(...temperatures)
+                    const maximum = Math.max(...temperatures)
+                    const range = Math.max(maximum - minimum, 1)
+                    const height = 24 + ((Number(hour.temperature) || minimum) - minimum) / range * 46
+                    return (
+                      <div className="chart-bar-item" key={`${hour.time}-${index}`}>
+                        <span className="chart-value">{formatTemperature(hour.temperature)}</span>
+                        <div className="chart-bar" style={{ height: `${height}px` }} />
+                        <span className="chart-time">{index === 0 ? 'Now' : hour.time.split(/[T ]/)[1]?.slice(0, 2)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
               </section>
-            ) : (
-              <div className="no-weather-alerts" role="status">
-                ✓ Tidak ada peringatan cuaca aktif yang dikirim untuk lokasi ini.
-              </div>
             )}
 
             {weather.hourly_forecast?.length > 0 && (
@@ -679,6 +732,18 @@ export default function App() {
                     )
                   })}
                 </div>
+                {selectedForecastHour && (() => {
+                  const selectedHour = weather.hourly_forecast.find((hour) => hour.time === selectedForecastHour)
+                  return selectedHour ? (
+                    <div className="forecast-detail" role="status">
+                      <strong>Detail jam {selectedHour.time.split(/[T ]/)[1]?.slice(0, 5) || 'terpilih'}</strong>
+                      <span>Terasa seperti {formatTemperature(selectedHour.apparent_temperature)}</span>
+                      <span>Kelembapan {selectedHour.humidity ?? '—'}%</span>
+                      <span>Angin {selectedHour.wind_speed ?? '—'} km/j</span>
+                      <span>Hujan {selectedHour.precipitation_probability ?? '—'}%</span>
+                    </div>
+                  ) : null
+                })()}
               </div>
             )}
 
@@ -715,9 +780,22 @@ export default function App() {
                     )
                   })}
                 </div>
+                {selectedForecastDay && (() => {
+                  const selectedDay = weather.forecast.find((day) => day.date === selectedForecastDay)
+                  return selectedDay ? (
+                    <div className="forecast-detail" role="status">
+                      <strong>{formatTanggal(selectedDay.date)}</strong>
+                      <span>{selectedDay.condition}</span>
+                      <span>Min {formatTemperature(selectedDay.temp_min)} / Maks {formatTemperature(selectedDay.temp_max)}</span>
+                      {selectedDay.precipitation_probability != null && (
+                        <span>Hujan {selectedDay.precipitation_probability}%</span>
+                      )}
+                    </div>
+                  ) : null
+                })()}
               </div>
             )}
-          </div>
+          </main>
         )}
       </div>
     </div>

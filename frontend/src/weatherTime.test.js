@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { getDayPhase } from './weatherTime.js'
+import { getDayPhase, getPersonalGreeting } from './weatherTime.js'
 
 const jakartaWeather = {
   timezone: 'Asia/Jakarta',
@@ -32,4 +32,11 @@ test('falls back to the provider day flag when sun times are absent', () => {
     progress: 0.5,
     twilight: 0,
   })
+})
+
+test('adds weather-aware advice to the time and location greeting', () => {
+  const greeting = getPersonalGreeting({ phase: 'dawn' }, 'Bandung', 'Hujan ringan')
+
+  assert.match(greeting, /Selamat pagi di Bandung/)
+  assert.match(greeting, /Payungmu/)
 })

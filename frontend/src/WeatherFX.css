@@ -9,6 +9,23 @@ body {
   overflow-x: hidden;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:where(button, input, summary, a):focus-visible {
+  outline: 3px solid #bae6fd;
+  outline-offset: 3px;
+}
+
 .weather-stage {
   min-height: 100vh;
   width: 100%;
@@ -43,53 +60,53 @@ body {
   opacity: 1;
 }
 
-/* Palet Langit yang Segar, Hangat, dan Nyaman Dilihat */
+/* Palet pastel mengikuti suasana cuaca pada ilustrasi latar. */
 .theme-clear {
-  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 52%, #075985 100%);
+  background: linear-gradient(180deg, #5ec8ff 0%, #d4f3ff 100%);
 }
 
 .theme-cloudy {
-  background: linear-gradient(180deg, #64748b 0%, #475569 50%, #1e293b 100%);
+  background: linear-gradient(180deg, #9cc3df 0%, #e1edf5 100%);
 }
 
 .theme-partly-cloudy {
-  background: linear-gradient(180deg, #7dd3fc 0%, #38bdf8 48%, #0369a1 100%);
+  background: linear-gradient(180deg, #7bc5ec 0%, #d9f0fc 100%);
 }
 
 .theme-rain {
-  background: linear-gradient(180deg, #312e81 0%, #1e1b4b 55%, #0f172a 100%);
+  background: linear-gradient(180deg, #6d86a6 0%, #b4c6d4 100%);
 }
 
 .theme-night-rain {
-  background: linear-gradient(180deg, #172554 0%, #1e1b4b 54%, #090d16 100%);
+  background: linear-gradient(180deg, #1b2347 0%, #3a4570 100%);
 }
 
 .theme-storm {
-  background: linear-gradient(180deg, #27272a 0%, #3b0764 55%, #09090b 100%);
+  background: linear-gradient(180deg, #2f3556 0%, #5b648a 100%);
 }
 
 .theme-night-storm {
-  background: linear-gradient(180deg, #181329 0%, #312e81 48%, #09090b 100%);
+  background: linear-gradient(180deg, #0f1330 0%, #2b3157 100%);
 }
 
 .theme-snow {
-  background: linear-gradient(180deg, #bae6fd 0%, #64748b 54%, #334155 100%);
+  background: linear-gradient(180deg, #b9d6ee 0%, #f0f7fd 100%);
 }
 
 .theme-night-snow {
-  background: linear-gradient(180deg, #1e293b 0%, #334155 52%, #0f172a 100%);
+  background: linear-gradient(180deg, #232a5c 0%, #5a6aa0 100%);
 }
 
 .theme-fog {
-  background: linear-gradient(180deg, #94a3b8 0%, #64748b 52%, #334155 100%);
+  background: linear-gradient(180deg, #b5c3cf 0%, #e6ebef 100%);
 }
 
 .theme-night-fog {
-  background: linear-gradient(180deg, #334155 0%, #1e293b 55%, #0f172a 100%);
+  background: linear-gradient(180deg, #2a3158 0%, #59608a 100%);
 }
 
 .theme-night {
-  background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 55%, #090d16 100%);
+  background: linear-gradient(180deg, #131a4a 0%, #4b3f8f 100%);
 }
 
 /* Scene SVG Full-Screen di Latar Belakang */
@@ -103,9 +120,25 @@ body {
 }
 
 .cute-scene-canvas {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.cute-scene-terrain {
+  position: absolute;
+  z-index: 0;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: clamp(150px, 28vh, 300px);
+}
+
+.cute-scene-layer .qwarts-mascot {
+  z-index: 2;
 }
 
 .cute-scene-fallback {
@@ -145,6 +178,51 @@ body {
 
 .cute-fallback-heart-1 { left: 24%; }
 .cute-fallback-heart-2 { left: 73%; animation-delay: -6s; }
+
+.qwarts-mascot {
+  position: fixed;
+  right: clamp(24px, 5vw, 84px);
+  top: 31%;
+  width: clamp(145px, 15vw, 220px);
+  z-index: 0;
+  opacity: 0.92;
+  filter: drop-shadow(0 22px 28px rgba(15, 23, 42, 0.24));
+  animation: mascotFloat 4.8s ease-in-out infinite alternate;
+  transform-origin: center bottom;
+}
+
+.qwarts-mascot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.qwarts-mascot-shadow {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: -10px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.24);
+  filter: blur(7px);
+  animation: mascotShadow 4.8s ease-in-out infinite alternate;
+}
+
+.qwarts-mascot-night {
+  filter: drop-shadow(0 18px 30px rgba(251, 207, 232, 0.18));
+}
+
+@keyframes mascotFloat {
+  0% { transform: translateY(6px) rotate(-1deg) scale(0.98); }
+  100% { transform: translateY(-10px) rotate(1deg) scale(1.02); }
+}
+
+@keyframes mascotShadow {
+  0% { transform: scaleX(1); opacity: 0.9; }
+  100% { transform: scaleX(0.72); opacity: 0.45; }
+}
 
 .cute-sun-wrap {
   position: absolute;
@@ -375,7 +453,7 @@ body {
 .content-wrapper {
   position: relative;
   z-index: 1;
-  max-width: 580px;
+  max-width: 760px;
   margin: 0 auto;
 }
 
@@ -387,8 +465,134 @@ body {
   gap: 12px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.quick-settings {
+  position: relative;
+}
+
+.quick-settings summary {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
+  cursor: pointer;
+  list-style: none;
+}
+
+.quick-settings summary::-webkit-details-marker {
+  display: none;
+}
+
+.quick-settings-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  width: max-content;
+  max-width: calc(100vw - 28px);
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.94);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(16px);
+}
+
+.gps-button {
+  min-height: 44px;
+  padding: 7px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
+  color: #f8fafc;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gps-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .app-header > div {
   flex-wrap: wrap;
+}
+
+.qwarts-brand {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+
+.qwarts-brand h1 {
+  margin: 0;
+  font-size: 1.85rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.qwarts-brand span {
+  margin-top: 6px;
+  color: rgba(248, 250, 252, 0.78);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.weather-personality-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.weather-personality-banner strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 0.85rem;
+  color: #fef9c3;
+}
+
+.weather-personality-banner p {
+  margin: 0;
+  color: rgba(248, 250, 252, 0.86);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.personality-avatar {
+  flex: 0 0 auto;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.13);
+  font-size: 1.65rem;
+  filter: drop-shadow(0 6px 10px rgba(15, 23, 42, 0.25));
+}
+
+.personal-greeting {
+  margin: 0 0 16px;
+  color: rgba(224, 242, 254, 0.9);
+  font-size: 0.82rem;
 }
 
 .glass-card {
@@ -419,6 +623,47 @@ body {
   50% { transform: translateY(-8px) rotate(3deg); }
 }
 
+.search-box {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.search-form {
+  display: flex;
+  gap: 8px;
+}
+
+.search-form input {
+  min-width: 0;
+  flex: 1;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(12px);
+  color: #f8fafc;
+  font: inherit;
+  outline: none;
+}
+
+.search-submit {
+  min-height: 48px;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 14px;
+  background: #38bdf8;
+  color: #0f172a;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.4);
+}
+
+.search-submit:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 /* Dropdown Autocomplete */
 .autocomplete-dropdown {
   position: absolute;
@@ -435,12 +680,18 @@ body {
 }
 
 .autocomplete-item {
+  width: 100%;
   padding: 11px 16px;
   cursor: pointer;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   transition: background 0.15s ease;
 }
 
@@ -448,8 +699,27 @@ body {
   border-bottom: none;
 }
 
-.autocomplete-item:hover {
+.autocomplete-item:hover,
+.autocomplete-item.is-active {
   background: rgba(56, 189, 248, 0.25);
+}
+
+.forecast-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 14px;
+  background: rgba(56, 189, 248, 0.1);
+  color: rgba(248, 250, 252, 0.86);
+  font-size: 0.78rem;
+}
+
+.forecast-detail strong {
+  flex-basis: 100%;
+  color: #e0f2fe;
 }
 
 .forecast-row {
@@ -491,13 +761,40 @@ body {
 .fav-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 13px;
+  gap: 2px;
+  padding: 3px;
   border-radius: 999px;
   font-size: 0.85rem;
   cursor: pointer;
   backdrop-filter: blur(8px);
   transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.fav-chip.is-active {
+  border-color: #bae6fd;
+  background: rgba(56, 189, 248, 0.45);
+}
+
+.fav-chip button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.fav-chip button:first-child {
+  padding: 6px 7px 6px 12px;
+}
+
+.fav-chip .fav-remove {
+  width: 38px;
+  padding: 0;
+  opacity: 0.82;
 }
 
 .fav-chip:hover {
@@ -674,6 +971,34 @@ body {
   color: rgba(248, 250, 252, 0.78);
 }
 
+.sound-toggle {
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(10px);
+  color: #f8fafc;
+  font: inherit;
+  font-size: 0.76rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sound-toggle[aria-pressed="false"] {
+  color: rgba(248, 250, 252, 0.78);
+}
+
+.sound-status {
+  margin: 0 0 12px;
+  color: #fff1f2;
+  font-size: 0.8rem;
+}
+
+.app-header > div:last-child {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .motion-reduced .cute-scene-layer *,
 .motion-reduced .floating-icon,
 .motion-reduced .glass-card,
@@ -688,6 +1013,89 @@ body {
   animation-duration: 0.01ms !important;
   animation-delay: 0ms !important;
   transition-duration: 0.01ms !important;
+}
+
+.offline-banner {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid rgba(253, 186, 116, 0.38);
+  border-radius: 12px;
+  background: rgba(124, 45, 18, 0.72);
+  color: #ffedd5;
+  font-size: 0.82rem;
+}
+
+.refresh-status {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.16);
+  color: #bae6fd;
+  animation: pulseRefresh 1.2s ease-in-out infinite;
+}
+
+@keyframes pulseRefresh {
+  50% { opacity: 0.55; }
+}
+
+.temperature-chart {
+  margin-bottom: 16px;
+  padding: 20px 22px;
+}
+
+.chart-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.chart-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.chart-heading p {
+  margin: 4px 0 0;
+  color: rgba(248, 250, 252, 0.68);
+  font-size: 0.75rem;
+}
+
+.chart-heading > strong {
+  color: #e0f2fe;
+  font-size: 1.35rem;
+}
+
+.chart-bars {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(22px, 1fr));
+  align-items: end;
+  min-height: 120px;
+  gap: 5px;
+  overflow-x: auto;
+}
+
+.chart-bar-item {
+  display: grid;
+  min-width: 22px;
+  align-items: end;
+  justify-items: center;
+  gap: 5px;
+}
+
+.chart-value,
+.chart-time {
+  color: rgba(248, 250, 252, 0.72);
+  font-size: 0.58rem;
+  white-space: nowrap;
+}
+
+.chart-bar {
+  width: min(18px, 70%);
+  min-height: 24px;
+  border-radius: 999px 999px 6px 6px;
+  background: linear-gradient(180deg, #38bdf8, rgba(56, 189, 248, 0.18));
+  box-shadow: 0 7px 18px rgba(56, 189, 248, 0.12);
 }
 
 .weather-meta {
@@ -868,6 +1276,7 @@ body {
 
 @media (max-width: 480px) {
   .weather-highlights {
+    grid-template-columns: 1fr;
     gap: 7px;
   }
 
@@ -885,9 +1294,49 @@ body {
   }
 }
 
+@media (max-width: 900px) {
+  .qwarts-mascot {
+    display: none;
+  }
+}
+
 @media (max-width: 560px) {
   .weather-stage {
     padding: 24px 14px 48px;
+  }
+  .app-header {
+    align-items: flex-start;
+  }
+  .header-actions {
+    width: 100%;
+  }
+  .gps-button {
+    flex: 1;
+  }
+  .quick-settings-panel {
+    right: auto;
+    left: 0;
+  }
+  .search-form {
+    gap: 6px;
+  }
+  .search-submit {
+    padding-inline: 16px;
+  }
+  .forecast-row {
+    grid-template-columns: 92px 1fr;
+  }
+  .forecast-row > span:last-child {
+    grid-column: 2;
+  }
+  .weather-personality-banner {
+    align-items: flex-start;
+  }
+  .floating-icon {
+    font-size: 2.8rem;
+  }
+  .qwarts-mascot {
+    display: none;
   }
 
   .app-header h1 {

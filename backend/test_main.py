@@ -70,9 +70,9 @@ class WeatherApiTests(unittest.IsolatedAsyncioTestCase):
                         "astro": {"sunrise": "05:30 AM", "sunset": "05:45 PM"},
                         "day": {"condition": {"text": "Cerah"}, "maxtemp_c": 32, "mintemp_c": 24},
                         "hour": [
-                            {"time": "2026-11-22 10:00", "temp_c": 29, "chance_of_rain": 0, "condition": {"text": "Cerah"}},
-                            {"time": "2026-11-22 11:00", "temp_c": 30, "chance_of_rain": 0, "condition": {"text": "Cerah"}},
-                            {"time": "2026-11-22 12:00", "temp_c": 31, "chance_of_rain": 5, "condition": {"text": "Cerah"}},
+                            {"time": "2026-11-22 10:00", "temp_c": 29, "feelslike_c": 31, "humidity": 68, "wind_kph": 10, "uv": 4, "chance_of_rain": 0, "precip_mm": 0, "condition": {"text": "Cerah"}},
+                            {"time": "2026-11-22 11:00", "temp_c": 30, "feelslike_c": 32, "humidity": 70, "wind_kph": 12, "uv": 5, "chance_of_rain": 0, "precip_mm": 0, "condition": {"text": "Cerah"}},
+                            {"time": "2026-11-22 12:00", "temp_c": 31, "feelslike_c": 33, "humidity": 72, "wind_kph": 14, "uv": 6, "chance_of_rain": 5, "precip_mm": 0.1, "condition": {"text": "Cerah"}},
                         ],
                     },
                     {
@@ -108,6 +108,9 @@ class WeatherApiTests(unittest.IsolatedAsyncioTestCase):
             "2026-11-22 11:00",
             "2026-11-22 12:00",
         ])
+        self.assertEqual(result["hourly_forecast"][0]["apparent_temperature"], 32)
+        self.assertEqual(result["hourly_forecast"][0]["humidity"], 70)
+        self.assertEqual(result["hourly_forecast"][1]["rain_mm"], 0.1)
         self.assertEqual(len(result["forecast"]), 2)
         self.assertEqual(result["source"], "weatherapi")
 
