@@ -383,7 +383,7 @@ export default function App() {
 
   return (
     <div
-      className={`weather-stage ${stageTheme}${backgroundMotion ? '' : ' motion-reduced'}`}
+      className={`weather-stage ${stageTheme} phase-${dayPhase.phase}${backgroundMotion ? '' : ' motion-reduced'}`}
       style={{ '--twilight-opacity': dayPhase.twilight }}
     >
       {transitionTheme && (

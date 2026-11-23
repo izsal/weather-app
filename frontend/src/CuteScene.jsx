@@ -293,7 +293,10 @@ export default function CuteScene({
     renderer.setClearColor(0x000000, 0)
 
     let worldWidth = 8
-    const clouds = Array.from({ length: 5 }, (_, index) => {
+    const cloudCount = visual.storm || visual.rain || visual.snow || visual.hail
+      ? (lowPowerDevice ? 2 : 3)
+      : (lowPowerDevice ? 3 : 4)
+    const clouds = Array.from({ length: cloudCount }, (_, index) => {
       const group = makeCloud()
       const scale = 0.72 + ((index * 7) % 4) * 0.12
       const face = group.userData.face
@@ -364,7 +367,8 @@ export default function CuteScene({
     lightning.userData.nextFlash = 2 + Math.random() * 5
     scene.add(lightning)
 
-    const stars = Array.from({ length: 36 }, (_, index) => {
+    const starCount = lowPowerDevice ? 14 : 24
+    const stars = Array.from({ length: starCount }, (_, index) => {
       const star = new Mesh(
         new CircleGeometry(0.018 + (index % 3) * 0.008, 8),
         new MeshBasicMaterial({ color: '#fef08a', transparent: true }),
@@ -386,7 +390,8 @@ export default function CuteScene({
       return star
     })
 
-    const sparkles = Array.from({ length: 12 }, (_, index) => {
+    const sparkleCount = visual.sun && !nighttime ? (lowPowerDevice ? 5 : 8) : 0
+    const sparkles = Array.from({ length: sparkleCount }, (_, index) => {
       const sparkle = new Mesh(
         new PlaneGeometry(0.12, 0.12),
         new MeshBasicMaterial({
@@ -402,7 +407,8 @@ export default function CuteScene({
       return sparkle
     })
 
-    const hearts = Array.from({ length: 5 }, (_, index) => {
+    const heartCount = visual.sun && !nighttime ? (lowPowerDevice ? 2 : 3) : 0
+    const hearts = Array.from({ length: heartCount }, (_, index) => {
       const heart = makeHeart(index % 2 ? '#fda4af' : '#fbcfe8')
       heart.position.set(((index * 1.413) % 2 - 1) * worldWidth, -4.5 - index * 0.9, -0.15)
       heart.scale.setScalar(0.55 + (index % 3) * 0.14)
@@ -419,11 +425,11 @@ export default function CuteScene({
     const safeRainChance = Math.min(Math.max(Number(rainChance) || 0, 0), 100)
     const safeWindSpeed = Math.min(Math.max(Number(windSpeed) || 0, 0), 100)
     const nominalParticleCount = visual.hail
-      ? 32
+      ? 24
       : visual.snow
-        ? 64
+        ? 48
         : isRain
-          ? Math.round(18 + safeRainChance * 0.55)
+          ? Math.round((visual.storm ? 22 : 18) + safeRainChance * (visual.storm ? 0.22 : 0.35))
           : 0
     const particleCount = lowPowerDevice
       ? Math.round(nominalParticleCount * 0.55)
@@ -633,7 +639,7 @@ export default function CuteScene({
         lightning.material.opacity = flashTime < lightning.userData.nextFlash
           ? 0
           : flashTime < lightning.userData.nextFlash + 0.08
-            ? 0.32
+            ? 0.22
             : flashTime < lightning.userData.nextFlash + 0.2
               ? 0
               : flashTime < lightning.userData.nextFlash + 0.27
@@ -722,16 +728,20 @@ export default function CuteScene({
           <span className="cute-fallback-cloud cute-fallback-cloud-2">☁️</span>
           {visual.sun && dayPhase.phase !== 'night' && <span className="cute-fallback-sun">☀️</span>}
           {(dayPhase.phase === 'night' || dayPhase.phase === 'dusk') && <span className="cute-fallback-moon">🌙</span>}
-          <span className="cute-fallback-heart cute-fallback-heart-1">♥</span>
-          <span className="cute-fallback-heart cute-fallback-heart-2">♥</span>
-          {visual.rain && Array.from({ length: 22 }, (_, index) => (
+          {visual.sun && !visual.rain && !visual.storm && !visual.snow && (
+            <>
+              <span className="cute-fallback-heart cute-fallback-heart-1">♥</span>
+              <span className="cute-fallback-heart cute-fallback-heart-2">♥</span>
+            </>
+          )}
+          {visual.rain && Array.from({ length: 14 }, (_, index) => (
             <span
               key={`rain-${index}`}
               className="rain-drop"
               style={{ left: `${(index * 4.7) % 100}%`, animationDelay: `${(index % 8) * 0.16}s` }}
             />
           ))}
-          {visual.snow && Array.from({ length: 18 }, (_, index) => (
+          {visual.snow && Array.from({ length: 14 }, (_, index) => (
             <span
               key={`snow-${index}`}
               className="snowflake"
@@ -740,7 +750,7 @@ export default function CuteScene({
               ❄
             </span>
           ))}
-          {visual.hail && Array.from({ length: 14 }, (_, index) => (
+          {visual.hail && Array.from({ length: 10 }, (_, index) => (
             <span
               key={`hail-${index}`}
               className="hailstone"

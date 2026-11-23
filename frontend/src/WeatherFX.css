@@ -47,6 +47,17 @@ body {
   transition: opacity 1.4s ease;
 }
 
+.weather-stage::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: '';
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 42%, transparent 38%, rgba(15, 23, 42, 0.08) 78%, rgba(15, 23, 42, 0.18) 100%),
+    radial-gradient(circle at 50% 110%, rgba(15, 23, 42, 0.12), transparent 38%);
+}
+
 .weather-theme-overlay {
   position: absolute;
   inset: 0;
@@ -78,7 +89,7 @@ body {
 }
 
 .theme-night-rain {
-  background: linear-gradient(180deg, #1b2347 0%, #3a4570 100%);
+  background: linear-gradient(180deg, #161e3d 0%, #343c64 100%);
 }
 
 .theme-storm {
@@ -86,7 +97,7 @@ body {
 }
 
 .theme-night-storm {
-  background: linear-gradient(180deg, #0f1330 0%, #2b3157 100%);
+  background: linear-gradient(180deg, #10142d 0%, #252b4b 100%);
 }
 
 .theme-snow {
@@ -94,7 +105,7 @@ body {
 }
 
 .theme-night-snow {
-  background: linear-gradient(180deg, #232a5c 0%, #5a6aa0 100%);
+  background: linear-gradient(180deg, #1d2552 0%, #505d8c 100%);
 }
 
 .theme-fog {
@@ -102,11 +113,11 @@ body {
 }
 
 .theme-night-fog {
-  background: linear-gradient(180deg, #2a3158 0%, #59608a 100%);
+  background: linear-gradient(180deg, #252e55 0%, #4d5680 100%);
 }
 
 .theme-night {
-  background: linear-gradient(180deg, #131a4a 0%, #4b3f8f 100%);
+  background: linear-gradient(180deg, #10183f 0%, #34316b 100%);
 }
 
 /* Scene SVG Full-Screen di Latar Belakang */
@@ -182,12 +193,12 @@ body {
 .qwarts-mascot {
   position: fixed;
   right: clamp(24px, 5vw, 84px);
-  top: 31%;
-  width: clamp(145px, 15vw, 220px);
+  bottom: clamp(42px, 8vh, 96px);
+  width: clamp(145px, 12vw, 190px);
   z-index: 0;
-  opacity: 0.92;
+  opacity: 0.82;
   filter: drop-shadow(0 22px 28px rgba(15, 23, 42, 0.24));
-  animation: mascotFloat 4.8s ease-in-out infinite alternate;
+  animation: mascotFloat 6.4s ease-in-out infinite alternate;
   transform-origin: center bottom;
 }
 
@@ -207,7 +218,7 @@ body {
   border-radius: 50%;
   background: rgba(15, 23, 42, 0.24);
   filter: blur(7px);
-  animation: mascotShadow 4.8s ease-in-out infinite alternate;
+  animation: mascotShadow 6.4s ease-in-out infinite alternate;
 }
 
 .qwarts-mascot-night {
@@ -603,6 +614,16 @@ body {
   border-radius: 22px;
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28);
   animation: cardFadeUp 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.weather-stage.phase-night .glass-card,
+.weather-stage.phase-dusk .glass-card {
+  background: rgba(15, 23, 42, 0.68);
+  border-color: rgba(224, 242, 254, 0.24);
+}
+
+.weather-stage.phase-day .glass-card {
+  background: rgba(15, 23, 42, 0.48);
 }
 
 @keyframes cardFadeUp {
